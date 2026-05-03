@@ -1,0 +1,36 @@
+:root {
+  --ink:       #040E09;
+  --forest:    #0A5C46;
+  --emerald:   #0F6E56;
+  --jade:      #1A9272;
+  --gold:      #C8952A;
+  --amber:     #E8A838;
+  --cream:     #F4EFE4;
+  --parchment: #EDE8DC;
+  --slate:     #3B5249;
+  --fog:       #D6D9D4;
+  --white:     #FAFAF8;
+
+  --font-display: var(--font-cormorant), 'Georgia', serif;
+  --font-body:    var(--font-dm-sans), system-ui, sans-serif;
+  --font-mono:    var(--font-dm-mono), 'Courier New', monospace;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: var(--font-body);
+  background: var(--cream);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--fog); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: var(--slate); }
+
+/* Placeholder */
+::placeholder { color: var(--fog); opacity: 1; }

@@ -295,7 +295,7 @@ export default function SettingsPage() {
             {resetResult && (
               <div style={{ background: 'rgba(200,149,42,0.08)', border: '1px solid rgba(200,149,42,0.3)', borderRadius: 10, padding: '12px 16px', marginBottom: 16 }}>
                 <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--amber)', marginBottom: 6 }}>New temp password — shown once</div>
-                <div style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'var(--ink)', fontFamily: 'var(--font-mono)' as any }}>{resetResult.tempPassword}</div>
+                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--ink)' }}>{resetResult.tempPassword}</div>
                 <button onClick={() => setResetResult(null)} style={{ marginTop: 6, fontFamily: 'var(--font-body)', fontSize: 11, color: 'var(--slate)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>Dismiss</button>
               </div>
             )}

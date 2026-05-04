@@ -7,7 +7,7 @@
 export const BC_ENTITIES = {
   // --- Customers & Sales ---
   Customer: {
-    description: 'Customers / debtors / clients',
+    description: 'Customers / debtors / clients. To find overdue/outstanding debtors use $filter=Balance_LCY gt 0. No Due_Date field exists on Customer.',
     keyField: 'No',
     usefulFields: [
       'No', 'Name', 'Balance_LCY', 'Credit_Limit_LCY',

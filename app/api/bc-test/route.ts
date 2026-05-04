@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
   const top = searchParams.get('top') ?? '2'
 
   const url = entity === '$metadata'
-    ? `${tenant.agentBaseUrl}/${tenant.bcInstance}/ODataV4/Company('${tenant.bcCompany}')/$metadata`
+    ? `${tenant.agentBaseUrl}/${tenant.bcInstance}/ODataV4/$metadata`
     : `${tenant.agentBaseUrl}/${tenant.bcInstance}/ODataV4/Company('${tenant.bcCompany}')/${entity}?$top=${top}`
 
   try {

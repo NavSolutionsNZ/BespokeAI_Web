@@ -61,6 +61,32 @@ export async function POST(req: NextRequest) {
   const conversationHistory: { role: 'user' | 'assistant'; content: string }[] =
     Array.isArray(body.history) ? body.history.slice(-6) : []
 
+  // ── Step 0a: Rewrite follow-up questions into standalone questions ─────────
+  // Catches pronouns/references ("show them", "list those", "and last year?") and
+  // rewrites using conversation context so the classifier and planner always see
+  // a fully self-contained question — preventing misrouting as generic.
+  const FOLLOWUP_PATTERN = /\b(them|those|it|that|these|there|breakdown|break.?down|show|list|expand|give me|what about|and (last|this|next)|same|previous|more|details?)\b/i
+  let resolvedQuestion = question
+
+  if (conversationHistory.length >= 2 && FOLLOWUP_PATTERN.test(question)) {
+    try {
+      const rewriteRes = await openai.chat.completions.create({
+        model: 'gpt-4o',
+        max_tokens: 120,
+        messages: [
+          {
+            role: 'system',
+            content: 'You are a query resolver for a Business Central CFO assistant. Given a conversation and a follow-up question containing pronouns or references to previous results, rewrite it as a complete standalone question with all necessary context. Output ONLY the rewritten question — nothing else. If already standalone, output it unchanged.',
+          },
+          ...conversationHistory,
+          { role: 'user', content: 'Follow-up to rewrite: "' + question + '"' },
+        ],
+      })
+      const rewritten = rewriteRes.choices[0].message.content?.trim() ?? question
+      if (rewritten && rewritten.length > 3) resolvedQuestion = rewritten
+    } catch { /* fall back to original */ }
+  }
+
   // 3. Load tenant config
   const tenant = await getTenantById(session.user.tenantId)
   if (!tenant) {
@@ -100,6 +126,7 @@ export async function POST(req: NextRequest) {
   const qStart = (q: number, yr: number) => new Date(yr, (q - 1) * 3, 1)
   const qEnd   = (q: number, yr: number) => new Date(yr, q * 3, 0, 23, 59, 59)
   const fmt    = (d: Date) => d.toISOString().slice(0, 10)
+  const fmtEnd = (d: Date) => d.toISOString().slice(0, 10) + ' 23:59:59'
 
   const currentQ  = Math.floor(m / 3) + 1
   const lastQ     = currentQ === 1 ? 4 : currentQ - 1
@@ -111,17 +138,17 @@ export async function POST(req: NextRequest) {
 TODAY: ${fmt(now)} (${now.toLocaleDateString('en-NZ', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })})
 
 Use ONLY these pre-calculated date ranges — never calculate your own:
-- This quarter (Q${currentQ} ${y}):        ${fmt(qStart(currentQ, y))} to ${fmt(qEnd(currentQ, y))}
-- Last quarter (Q${lastQ} ${lastQYear}):   ${fmt(qStart(lastQ, lastQYear))} to ${fmt(qEnd(lastQ, lastQYear))}
-- Previous quarter (Q${prevQ} ${prevQYear}): ${fmt(qStart(prevQ, prevQYear))} to ${fmt(qEnd(prevQ, prevQYear))}
-- This year (${y}):                        ${fmt(new Date(y, 0, 1))} to ${fmt(new Date(y, 11, 31))}
-- Last year (${y - 1}):                    ${fmt(new Date(y - 1, 0, 1))} to ${fmt(new Date(y - 1, 11, 31))}
+- This quarter (Q${currentQ} ${y}):        ${fmt(qStart(currentQ, y))} to ${fmtEnd(qEnd(currentQ, y))}
+- Last quarter (Q${lastQ} ${lastQYear}):   ${fmt(qStart(lastQ, lastQYear))} to ${fmtEnd(qEnd(lastQ, lastQYear))}
+- Previous quarter (Q${prevQ} ${prevQYear}): ${fmt(qStart(prevQ, prevQYear))} to ${fmtEnd(qEnd(prevQ, prevQYear))}
+- This year (${y}):                        ${fmt(new Date(y, 0, 1))} to ${fmtEnd(new Date(y, 11, 31))}
+- Last year (${y - 1}):                    ${fmt(new Date(y - 1, 0, 1))} to ${fmtEnd(new Date(y - 1, 11, 31))}
 - Last 30 days:                            ${fmt(new Date(now.getTime() - 30 * 86400000))} to ${fmt(now)}
 - Last 90 days:                            ${fmt(new Date(now.getTime() - 90 * 86400000))} to ${fmt(now)}
 - Last 6 months:                           ${fmt(new Date(y, m - 6, 1))} to ${fmt(now)}
 - Last 12 months:                          ${fmt(new Date(y - 1, m, 1))} to ${fmt(now)}
-- This month (${now.toLocaleString('en-NZ', { month: 'long' })} ${y}): ${fmt(new Date(y, m, 1))} to ${fmt(new Date(y, m + 1, 0))}
-- Last month:                              ${fmt(new Date(y, m - 1, 1))} to ${fmt(new Date(y, m, 0))}
+- This month (${now.toLocaleString('en-NZ', { month: 'long' })} ${y}): ${fmt(new Date(y, m, 1))} to ${fmtEnd(new Date(y, m + 1, 0))}
+- Last month:                              ${fmt(new Date(y, m - 1, 1))} to ${fmtEnd(new Date(y, m, 0))}
 
 CRITICAL: when filtering records by date, always use the EXACT date range above. Apply inclusive boundary comparisons: date >= start AND date <= end.`
 
@@ -153,7 +180,7 @@ needsData=true for: questions about their specific numbers, customers, invoices,
 needsData=false for: accounting concepts, BC how-to questions, ratio definitions, best practices, what-is questions, strategic CFO advice.`,
         },
         ...conversationHistory,
-        { role: 'user', content: question },
+        { role: 'user', content: resolvedQuestion },
       ],
     })
 
@@ -265,7 +292,7 @@ For time-series / "by month" / "over last N months" / trend questions:
 - SalesInvoiceSalesLines / PurchaseInvoicePurchLines have NO Posting_Date — never $select or $orderby Posting_Date from them`,
         },
         ...conversationHistory,
-        { role: 'user', content: question },
+        { role: 'user', content: resolvedQuestion },
       ],
     })
 

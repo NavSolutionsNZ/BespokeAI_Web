@@ -310,7 +310,9 @@ Numbers in rows must be raw numeric — no $ signs or commas.`,
         recordCount: rawRecords.length,
       },
     })
-  } catch { /* non-fatal — don't block the response */ }
+  } catch (e) {
+    console.error('[QueryLog save failed]', e)
+  }
 
   // ── Return ───────────────────────────────────────────────────────────────
 

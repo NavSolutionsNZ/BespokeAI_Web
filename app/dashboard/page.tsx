@@ -192,10 +192,17 @@ export default function DashboardPage() {
     setHistory(prev => [...prev, { id, question: q, answer: '', ts: new Date(), loading: true }])
 
     try {
+      // Build conversation history from the last 3 completed exchanges
+      const completedItems = history.filter(i => !i.loading && !i.error && i.answer)
+      const recentHistory = completedItems.slice(-3).flatMap(i => [
+        { role: 'user' as const,      content: i.question },
+        { role: 'assistant' as const, content: i.answer },
+      ])
+
       const res  = await fetch('/api/query', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question: q }),
+        body: JSON.stringify({ question: q, history: recentHistory }),
       })
       const data = await res.json()
       setHistory(prev => prev.map(item => item.id !== id ? item : {

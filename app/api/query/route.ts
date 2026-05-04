@@ -57,6 +57,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'question is required' }, { status: 400 })
   }
 
+  // Recent conversation turns so follow-ups like "show them" resolve correctly
+  const conversationHistory: { role: 'user' | 'assistant'; content: string }[] =
+    Array.isArray(body.history) ? body.history.slice(-6) : []
+
   // 3. Load tenant config
   const tenant = await getTenantById(session.user.tenantId)
   if (!tenant) {
@@ -148,6 +152,7 @@ Return JSON:
 needsData=true for: questions about their specific numbers, customers, invoices, balances, transactions, reports on their data.
 needsData=false for: accounting concepts, BC how-to questions, ratio definitions, best practices, what-is questions, strategic CFO advice.`,
         },
+        ...conversationHistory,
         { role: 'user', content: question },
       ],
     })
@@ -259,6 +264,7 @@ For time-series / "by month" / "over last N months" / trend questions:
 - SalesInvoice / PurchaseInvoice / SalesCrMemo headers have NO amount fields — never $select Amount or Amount_Including_VAT from them
 - SalesInvoiceSalesLines / PurchaseInvoicePurchLines have NO Posting_Date — never $select or $orderby Posting_Date from them`,
         },
+        ...conversationHistory,
         { role: 'user', content: question },
       ],
     })
@@ -488,6 +494,7 @@ line_chart: { "columns": ["Month", "Amount ($)"], "rows": [["Jan 2024", 54000]] 
 narrative: null
 Numbers in rows must be raw numeric — no $ signs or commas.`,
         },
+        ...conversationHistory.map(m => ({ role: m.role, content: m.content })),
         {
           role: 'user',
           content: `Question: ${question}\n\nBC data (${recordsForClaude.length} records from ${plan.entity}):\n${JSON.stringify(recordsForClaude, null, 2)}`,

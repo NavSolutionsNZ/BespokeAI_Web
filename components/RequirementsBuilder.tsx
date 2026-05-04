@@ -98,6 +98,9 @@ export default function RequirementsBuilder({ userRole, tenantId }:Props) {
   const [showRejectQuote, setShowRQ]     = useState(false)
   const [rejectReason, setRejectReason]  = useState('')
 
+  // Resubmit after quote rejection — editable fields seeded from requirement
+  const [resubmitForm, setRF] = useState({title:'',description:'',bcArea:'Finance',priority:'important',extraContext:''})
+
   async function load() {
     setLoading(true); setError('')
     try {
@@ -115,6 +118,7 @@ export default function RequirementsBuilder({ userRole, tenantId }:Props) {
     setShowQAP(false); setQAAnswers({})
     setAAD(''); setShowSB(false); setShowQF(false)
     setSpecErr(''); setShowRQ(false); setRejectReason('')
+    setRF({title:req.title,description:req.description,bcArea:req.bcArea,priority:req.priority,extraContext:''})
   }
 
   async function createReq() {
@@ -357,7 +361,7 @@ export default function RequirementsBuilder({ userRole, tenantId }:Props) {
                 </div>
               )}
 
-              {/* Quote rejected banner */}
+              {/* Quote rejected banner — customer view with edit form */}
               {quoteRej&&!isSuperadmin&&(
                 <div style={{background:'rgba(163,45,45,0.05)',border:'1px solid rgba(163,45,45,0.25)',borderRadius:10,padding:'16px 18px'}}>
                   <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:8}}>
@@ -365,8 +369,46 @@ export default function RequirementsBuilder({ userRole, tenantId }:Props) {
                     <span style={{fontFamily:'var(--font-mono)',fontSize:9,letterSpacing:'0.12em',textTransform:'uppercase',color:'#A32D2D',fontWeight:600}}>Quote rejected</span>
                   </div>
                   {req.quoteRejectionReason&&<p style={{fontFamily:'var(--font-body)',fontSize:13,color:'var(--ink)',lineHeight:1.7,marginBottom:14,fontStyle:'italic'}}>"{req.quoteRejectionReason}"</p>}
-                  <p style={{fontFamily:'var(--font-body)',fontSize:12,color:'var(--slate)',marginBottom:12,lineHeight:1.5}}>You can update your requirements below and resubmit for a revised quote.</p>
-                  <button onClick={()=>patch(req.id,{status:'submitted'})} disabled={actLoading} style={pBTN}>Resubmit for Revised Quote →</button>
+                  <p style={{fontFamily:'var(--font-body)',fontSize:12,color:'var(--slate)',marginBottom:16,lineHeight:1.55}}>
+                    Update your requirements below before resubmitting — you can revise scope, add context from the quote discussion, or adjust priority to help us provide a revised quote.
+                  </p>
+
+                  {/* Inline edit fields */}
+                  <div style={{display:'flex',flexDirection:'column',gap:12}}>
+                    <div>
+                      <label style={lbl}>Title</label>
+                      <input value={resubmitForm.title} onChange={e=>setRF(f=>({...f,title:e.target.value}))} style={iSt} onFocus={fo} onBlur={bl}/>
+                    </div>
+                    <div>
+                      <label style={lbl}>Updated description / revised scope</label>
+                      <textarea value={resubmitForm.description} onChange={e=>setRF(f=>({...f,description:e.target.value}))} rows={5} style={{...iSt,resize:'vertical',lineHeight:1.65}} onFocus={fo} onBlur={bl}/>
+                    </div>
+                    <div style={{display:'flex',gap:12}}>
+                      <div style={{flex:1}}>
+                        <label style={lbl}>BC Area</label>
+                        <select value={resubmitForm.bcArea} onChange={e=>setRF(f=>({...f,bcArea:e.target.value}))} style={{...iSt,cursor:'pointer'}}>{BC_AREAS.map(a=><option key={a} value={a}>{a}</option>)}</select>
+                      </div>
+                      <div style={{flex:1}}>
+                        <label style={lbl}>Priority</label>
+                        <select value={resubmitForm.priority} onChange={e=>setRF(f=>({...f,priority:e.target.value}))} style={{...iSt,cursor:'pointer'}}>{PRIORITIES.map(p=><option key={p.value} value={p.value}>{p.label}</option>)}</select>
+                      </div>
+                    </div>
+                    <div>
+                      <label style={lbl}>Additional context for revised quote (optional)</label>
+                      <textarea placeholder="e.g. We'd like to reduce scope to just the basic approval flow without email notifications to bring costs down." value={resubmitForm.extraContext} onChange={e=>setRF(f=>({...f,extraContext:e.target.value}))} rows={3} style={{...iSt,resize:'vertical',lineHeight:1.65}} onFocus={fo} onBlur={bl}/>
+                    </div>
+                    <button
+                      onClick={async()=>{
+                        const updates:any = { status:'submitted', title:resubmitForm.title, description:resubmitForm.description, bcArea:resubmitForm.bcArea, priority:resubmitForm.priority }
+                        if (resubmitForm.extraContext.trim()) updates.customerAnswers = resubmitForm.extraContext.trim()
+                        await patch(req.id, updates)
+                      }}
+                      disabled={actLoading||!resubmitForm.title.trim()||!resubmitForm.description.trim()}
+                      style={{...pBTN,opacity:(!resubmitForm.title.trim()||!resubmitForm.description.trim())?0.6:1}}
+                    >
+                      Resubmit for Revised Quote →
+                    </button>
+                  </div>
                 </div>
               )}
 
@@ -573,9 +615,6 @@ export default function RequirementsBuilder({ userRole, tenantId }:Props) {
                     ✕ Reject Quote
                   </button>
                 </>}
-                {!isSuperadmin&&req.status==='quote_rejected'&&(
-                  <button onClick={()=>patch(req.id,{status:'submitted'})} disabled={actLoading} style={pBTN}>Resubmit for Revised Quote →</button>
-                )}
                 {isSuperadmin&&req.status==='submitted'&&<>
                   <button onClick={()=>patch(req.id,{status:'in_review'})} disabled={actLoading} style={pBTN}>→ Mark In Review</button>
                   <button onClick={()=>{setShowSB(true);setShowQF(false)}} style={{background:'rgba(163,45,45,0.08)',border:'1px solid rgba(163,45,45,0.2)',color:'#A32D2D',borderRadius:8,padding:'9px 16px',cursor:'pointer',fontFamily:'var(--font-body)',fontSize:13}}>↩ Send Back with Questions</button>

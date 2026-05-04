@@ -1047,6 +1047,8 @@ interface AdminReq {
   id: string; tenantId: string; userId: string; title: string; description: string
   bcArea: string; priority: string; aiSpec: string | null; status: string
   quote: string | null; quoteApprovedAt: string | null; consultantNote: string | null
+  adminQuestions: string | null; customerAnswers: string | null
+  quoteRejectedAt: string | null; quoteRejectionReason: string | null
   createdAt: string; updatedAt: string
   user: { name: string | null; email: string }
   tenant: { name: string }
@@ -1062,6 +1064,8 @@ function AdminRequirementsTab() {
   const [quoteAmt, setQuoteAmt]   = useState('')
   const [quoteNote, setQuoteNote] = useState('')
   const [showQF, setShowQF]       = useState(false)
+  const [showSB, setShowSB]       = useState(false)
+  const [sendBackText, setSBT]    = useState('')
   const [genSpec, setGenSpec]     = useState(false)
   const [specErr, setSpecErr]     = useState('')
 
@@ -1091,6 +1095,7 @@ function AdminRequirementsTab() {
     setReqs(prev => prev.map(r => r.id === id ? updated : r))
     setSelected(updated)
     setAL(false)
+    setShowQF(false); setShowSB(false)
     return updated
   }
 
@@ -1178,46 +1183,118 @@ function AdminRequirementsTab() {
       {/* Detail */}
       {selected && (() => {
         const spec = parsedSpec(selected)
+        // Parse Q&A pairs if stored as JSON
+        let savedQA: {q:string;a:string}[] = []
+        let savedText = ''
+        try {
+          const parsed = selected.customerAnswers ? JSON.parse(selected.customerAnswers) : null
+          if (Array.isArray(parsed) && parsed[0]?.q !== undefined) savedQA = parsed
+          else if (selected.customerAnswers) savedText = selected.customerAnswers
+        } catch { savedText = selected.customerAnswers ?? '' }
+
         return (
           <div style={{ flex: 1, background: 'var(--cream)', borderRadius: 12, padding: '20px 22px', display: 'flex', flexDirection: 'column', gap: 16, position: 'sticky', top: 0, maxHeight: '80vh', overflowY: 'auto' }}>
+            {/* Header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
               <div>
                 <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 19, fontWeight: 500, color: 'var(--ink)', margin: 0, lineHeight: 1.3 }}>{selected.title}</h3>
-                <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                  {(() => { const sc = STATUS_COLOR_ADMIN[selected.status] ?? STATUS_COLOR_ADMIN.draft; return (
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 8, padding: '2px 8px', borderRadius: 6, background: sc.bg, border: `1px solid ${sc.border}`, color: sc.text, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                      {selected.status.replace(/_/g, ' ')}
+                    </span>
+                  )})()}
                   <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--jade)' }}>{selected.tenant.name}</span>
                   <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--slate)' }}>·</span>
                   <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--slate)' }}>{selected.user.name ?? selected.user.email}</span>
                 </div>
               </div>
-              <button onClick={() => setSelected(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--slate)', fontSize: 18, flexShrink: 0 }}>✕</button>
+              <button onClick={() => { setSelected(null); setShowQF(false); setShowSB(false) }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--slate)', fontSize: 18, flexShrink: 0 }}>✕</button>
             </div>
 
+            {/* Quote rejection banner */}
+            {selected.status === 'quote_rejected' && selected.quoteRejectionReason && (
+              <div style={{ background: 'rgba(163,45,45,0.05)', border: '1px solid rgba(163,45,45,0.25)', borderRadius: 8, padding: '12px 14px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                  <span style={{ fontSize: 14 }}>❌</span>
+                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: 8, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#A32D2D', fontWeight: 600 }}>Customer rejected quote</span>
+                  {selected.quoteRejectedAt && <span style={{ fontFamily: 'var(--font-mono)', fontSize: 8, color: 'var(--slate)', marginLeft: 'auto' }}>{new Date(selected.quoteRejectedAt).toLocaleDateString('en-NZ')}</span>}
+                </div>
+                <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: 'var(--ink)', lineHeight: 1.65, fontStyle: 'italic' }}>"{selected.quoteRejectionReason}"</p>
+              </div>
+            )}
+
+            {/* Needs clarification — show what was asked */}
+            {selected.status === 'needs_clarification' && selected.adminQuestions && (
+              <div style={{ background: 'rgba(200,149,42,0.06)', border: '1px solid rgba(200,149,42,0.25)', borderRadius: 8, padding: '12px 14px' }}>
+                <p style={{ fontFamily: 'var(--font-mono)', fontSize: 8, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#9A6A00', marginBottom: 8 }}>Questions sent to customer</p>
+                <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: 'var(--ink)', lineHeight: 1.65, whiteSpace: 'pre-wrap' }}>{selected.adminQuestions}</p>
+              </div>
+            )}
+
+            {/* Description */}
             <div style={{ background: 'var(--white)', border: '1px solid var(--fog)', borderRadius: 8, padding: '12px 14px' }}>
               <p style={{ fontFamily: 'var(--font-mono)', fontSize: 8, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--slate)', marginBottom: 8 }}>Description</p>
               <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: 'var(--ink)', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{selected.description}</p>
+
+              {/* Q&A clarification pairs */}
+              {(savedQA.length > 0 || savedText) && (
+                <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--fog)' }}>
+                  <p style={{ fontFamily: 'var(--font-mono)', fontSize: 8, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--jade)', marginBottom: 10 }}>Clarification provided</p>
+                  {savedQA.length > 0 ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      {savedQA.map((pair, i) => (
+                        <div key={i}>
+                          <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'var(--slate)', marginBottom: 3, fontStyle: 'italic' }}>Q{i+1}: {pair.q}</p>
+                          <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: 'var(--ink)', lineHeight: 1.6, paddingLeft: 10, borderLeft: '2px solid var(--jade)' }}>{pair.a}</p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: 'var(--slate)', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{savedText}</p>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* AI Spec */}
             {spec ? (
               <div style={{ background: 'var(--white)', border: '1px solid var(--fog)', borderRadius: 8, padding: '12px 14px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                  <p style={{ fontFamily: 'var(--font-mono)', fontSize: 8, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--slate)', margin: 0 }}>AI Spec · {spec.complexity} · ~{spec.estimatedDays}d</p>
+                  <p style={{ fontFamily: 'var(--font-mono)', fontSize: 8, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--slate)', margin: 0 }}>
+                    AI Spec · {spec.complexity} · ~{spec.estimatedDays}d
+                  </p>
                   <button onClick={() => generateSpec(selected.id)} disabled={genSpec} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--jade)', fontSize: 10 }}>{genSpec ? '…' : '↺ Regen'}</button>
                 </div>
                 <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'var(--ink)', fontStyle: 'italic', lineHeight: 1.6, marginBottom: 8 }}>{spec.userStory}</p>
-                <ul style={{ margin: 0, paddingLeft: 16 }}>
-                  {spec.acceptanceCriteria.map((c: string, i: number) => (
-                    <li key={i} style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'var(--slate)', lineHeight: 1.6 }}>{c}</li>
-                  ))}
-                </ul>
+                {spec.acceptanceCriteria?.length > 0 && (
+                  <ul style={{ margin: '0 0 8px', paddingLeft: 16 }}>
+                    {spec.acceptanceCriteria.map((c: string, i: number) => (
+                      <li key={i} style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'var(--slate)', lineHeight: 1.6 }}>{c}</li>
+                    ))}
+                  </ul>
+                )}
+                {spec.bcObjects?.length > 0 && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginTop: 8 }}>
+                    {spec.bcObjects.map((o: string, i: number) => (
+                      <span key={i} style={{ fontFamily: 'var(--font-mono)', fontSize: 10, background: 'var(--parchment)', border: '1px solid var(--fog)', borderRadius: 5, padding: '3px 8px', color: 'var(--slate)', display: 'inline-block' }}>{o}</span>
+                    ))}
+                  </div>
+                )}
+                {spec.questions?.length > 0 && (
+                  <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--fog)' }}>
+                    <p style={{ fontFamily: 'var(--font-mono)', fontSize: 8, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#9A6A00', marginBottom: 6 }}>Open questions</p>
+                    <ol style={{ margin: 0, paddingLeft: 16 }}>
+                      {spec.questions.map((q: string, i: number) => (
+                        <li key={i} style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'var(--ink)', lineHeight: 1.6 }}>{q}</li>
+                      ))}
+                    </ol>
+                  </div>
+                )}
                 {specErr && <p style={{ color: '#A32D2D', fontSize: 11, marginTop: 8 }}>{specErr}</p>}
               </div>
             ) : (
-              <button
-                onClick={() => generateSpec(selected.id)}
-                disabled={genSpec}
-                style={{ background: 'var(--ink)', color: 'var(--cream)', border: 'none', borderRadius: 8, padding: '9px 16px', cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 500 }}
-              >
+              <button onClick={() => generateSpec(selected.id)} disabled={genSpec} style={{ background: 'var(--ink)', color: 'var(--cream)', border: 'none', borderRadius: 8, padding: '9px 16px', cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 500 }}>
                 {genSpec ? '✦ Generating…' : '✦ Generate AI Spec'}
               </button>
             )}
@@ -1234,11 +1311,16 @@ function AdminRequirementsTab() {
 
             {/* Admin actions */}
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              {selected.status === 'submitted' && (
+              {selected.status === 'submitted' && <>
                 <button onClick={() => patch(selected.id, { status: 'in_review' })} disabled={actionLoading} style={{ ...btnStyle }}>→ In Review</button>
-              )}
-              {selected.status === 'in_review' && (
-                <button onClick={() => setShowQF(true)} disabled={actionLoading} style={{ ...btnStyle }}>$ Add Quote</button>
+                <button onClick={() => { setShowSB(true); setShowQF(false) }} style={{ ...btnStyle, background: 'rgba(163,45,45,0.08)', color: '#A32D2D', border: '1px solid rgba(163,45,45,0.2)' }}>↩ Send Back with Questions</button>
+              </>}
+              {selected.status === 'in_review' && <>
+                <button onClick={() => { setShowQF(true); setShowSB(false) }} disabled={actionLoading} style={{ ...btnStyle }}>$ Add Quote</button>
+                <button onClick={() => { setShowSB(true); setShowQF(false) }} style={{ ...btnStyle, background: 'rgba(163,45,45,0.08)', color: '#A32D2D', border: '1px solid rgba(163,45,45,0.2)' }}>↩ Send Back</button>
+              </>}
+              {selected.status === 'quote_rejected' && (
+                <button onClick={() => { setShowQF(true); setShowSB(false) }} disabled={actionLoading} style={{ ...btnStyle }}>$ Revise Quote</button>
               )}
               {selected.status === 'approved' && (
                 <button onClick={() => patch(selected.id, { status: 'in_development' })} disabled={actionLoading} style={{ ...btnStyle }}>→ Start Dev</button>
@@ -1246,18 +1328,55 @@ function AdminRequirementsTab() {
               {selected.status === 'in_development' && (
                 <button onClick={() => patch(selected.id, { status: 'complete' })} disabled={actionLoading} style={{ ...btnStyle, background: '#0A5C46' }}>✓ Complete</button>
               )}
-              {!['complete','rejected'].includes(selected.status) && (
+              {!['complete', 'rejected'].includes(selected.status) && (
                 <button onClick={() => patch(selected.id, { status: 'rejected' })} disabled={actionLoading} style={{ ...btnStyle, background: 'var(--fog)', color: '#A32D2D' }}>✕ Reject</button>
               )}
             </div>
 
+            {/* Send back form */}
+            {showSB && (
+              <div style={{ background: 'var(--white)', border: '1px solid rgba(163,45,45,0.25)', borderRadius: 8, padding: '12px 14px' }}>
+                <p style={{ fontFamily: 'var(--font-mono)', fontSize: 8, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#A32D2D', marginBottom: 6 }}>Questions for Customer</p>
+                <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'var(--slate)', marginBottom: 10, lineHeight: 1.5 }}>The customer will see this and must respond before resubmitting.</p>
+                <textarea
+                  placeholder={'e.g.\n1. Should approval apply to all orders or only above a threshold?\n2. Who are the approvers — named users or a permission group?\n3. Do you need email notifications?'}
+                  value={sendBackText}
+                  onChange={e => setSBT(e.target.value)}
+                  rows={5}
+                  style={{ ...inputStyle, resize: 'vertical', marginBottom: 10 }}
+                  onFocus={e => (e.target.style.borderColor = 'var(--forest)')}
+                  onBlur={e => (e.target.style.borderColor = 'var(--fog)')}
+                />
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    onClick={async () => { await patch(selected.id, { status: 'needs_clarification', adminQuestions: sendBackText.trim() }); setShowSB(false); setSBT('') }}
+                    disabled={!sendBackText.trim() || actionLoading}
+                    style={{ ...btnStyle, background: '#A32D2D', opacity: !sendBackText.trim() ? 0.6 : 1 }}
+                  >
+                    ↩ Send Back to Customer
+                  </button>
+                  <button onClick={() => { setShowSB(false); setSBT('') }} style={{ ...btnStyle, background: 'var(--fog)', color: 'var(--ink)' }}>Cancel</button>
+                </div>
+              </div>
+            )}
+
             {/* Quote form */}
             {showQF && (
               <div style={{ background: 'var(--white)', border: '1px solid rgba(10,92,70,0.2)', borderRadius: 8, padding: '12px 14px' }}>
-                <p style={{ fontFamily: 'var(--font-mono)', fontSize: 8, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--slate)', marginBottom: 8 }}>Quote Amount (NZD)</p>
+                <p style={{ fontFamily: 'var(--font-mono)', fontSize: 8, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--slate)', marginBottom: 8 }}>
+                  {selected.status === 'quote_rejected' ? 'Revised Quote Amount (NZD)' : 'Quote Amount (NZD)'}
+                </p>
+                {selected.status === 'quote_rejected' && selected.quoteRejectionReason && (
+                  <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'var(--slate)', marginBottom: 10, fontStyle: 'italic', lineHeight: 1.5 }}>Customer reason: "{selected.quoteRejectionReason}"</p>
+                )}
                 <input type="number" placeholder="e.g. 2500" value={quoteAmt} onChange={e => setQuoteAmt(e.target.value)} style={{ ...inputStyle, marginBottom: 10 }} onFocus={e => (e.target.style.borderColor = 'var(--forest)')} onBlur={e => (e.target.style.borderColor = 'var(--fog)')} />
                 <p style={{ fontFamily: 'var(--font-mono)', fontSize: 8, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--slate)', marginBottom: 8 }}>Note (optional)</p>
-                <textarea placeholder="e.g. Includes design, development and testing." value={quoteNote} onChange={e => setQuoteNote(e.target.value)} rows={2} style={{ ...inputStyle, resize: 'vertical', marginBottom: 10 }} onFocus={e => (e.target.style.borderColor = 'var(--forest)')} onBlur={e => (e.target.style.borderColor = 'var(--fog)')} />
+                <textarea
+                  placeholder={selected.status === 'quote_rejected' ? 'e.g. Revised to reduced scope per your feedback.' : 'e.g. Includes design, development and testing.'}
+                  value={quoteNote} onChange={e => setQuoteNote(e.target.value)} rows={2}
+                  style={{ ...inputStyle, resize: 'vertical', marginBottom: 10 }}
+                  onFocus={e => (e.target.style.borderColor = 'var(--forest)')} onBlur={e => (e.target.style.borderColor = 'var(--fog)')}
+                />
                 <div style={{ display: 'flex', gap: 8 }}>
                   <button onClick={async () => { await patch(selected.id, { status: 'quoted', quote: quoteAmt, consultantNote: quoteNote || undefined }); setShowQF(false); setQuoteAmt(''); setQuoteNote('') }} disabled={!quoteAmt || actionLoading} style={{ ...btnStyle, opacity: (!quoteAmt || actionLoading) ? 0.6 : 1 }}>Send Quote →</button>
                   <button onClick={() => setShowQF(false)} style={{ ...btnStyle, background: 'var(--fog)', color: 'var(--ink)' }}>Cancel</button>

@@ -7,6 +7,7 @@ import { useSession, signOut } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import type { DisplayHint, StructuredData } from '@/app/api/query/route'
 import DataVisualizer from '@/components/DataVisualizer'
+import { UpgradePrompt } from '@/components/UpgradePrompt'
 
 // ─── PDF helpers ──────────────────────────────────────────────────────────────
 
@@ -145,6 +146,7 @@ export default function DashboardPage() {
   const [pwSaving, setPwSaving]           = useState(false)
   const [pwError, setPwError]             = useState('')
   const [pwSuccess, setPwSuccess]         = useState(false)
+  const [tierBlocked, setTierBlocked]     = useState<null | { reason: string; trialEndsAt?: string | null }>(null)
 
   // Load query history on mount
   useEffect(() => {
@@ -208,6 +210,11 @@ export default function DashboardPage() {
         body: JSON.stringify({ question: q, history: recentHistory }),
       })
       const data = await res.json()
+      if (res.status === 402) {
+        setTierBlocked({ reason: data.reason, trialEndsAt: data.trialEndsAt })
+        setHistory(prev => prev.filter(item => item.id !== id))
+        return
+      }
       setHistory(prev => prev.map(item => item.id !== id ? item : {
         ...item, loading: false,
         answer: data.answer ?? '', displayHint: data.displayHint,
@@ -534,8 +541,13 @@ export default function DashboardPage() {
         {activeNav === 'assistant' && (
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
+            {/* Tier blocked */}
+            {tierBlocked && (
+              <UpgradePrompt reason={tierBlocked.reason} trialEndsAt={tierBlocked.trialEndsAt} />
+            )}
+
             {/* Chat area */}
-            <div style={{ flex: 1, overflowY: 'auto', padding: '28px 32px' }}>
+            {!tierBlocked && <div style={{ flex: 1, overflowY: 'auto', padding: '28px 32px' }}>
 
               {/* Greeting state */}
               {history.length === 0 && (
@@ -807,6 +819,8 @@ export default function DashboardPage() {
                 </button>
               </div>
             </div>
+            </div>}
+
           </div>
         )}
 

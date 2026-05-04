@@ -98,6 +98,18 @@ export default function AdminPage() {
     setTenants(prev => prev.map(t => t.id === id ? { ...t, active: !active } : t))
   }
 
+  async function setTenantTier(id: string, tier: string) {
+    await fetch(`/api/admin/tenants/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tier }),
+    })
+    setTenants(prev => prev.map(t => t.id === id ? {
+      ...t, tier,
+      trialEndsAt: (tier === 'paid' || tier === 'enterprise') ? null : t.trialEndsAt
+    } : t))
+  }
+
   async function downloadInstaller(tenantId: string) {
     setInstallerLoading(true); setInstallerError('')
     try {
@@ -468,6 +480,20 @@ export default function AdminPage() {
                           {(t as any).tunnelId && (
                             <button onClick={() => { setInstallerTenantId(t.id); setInstallerError('') }} style={{ ...ghostBtn, color: 'var(--forest)' }}>↓ Installer</button>
                           )}
+                          <select
+                            value={(t as any).tier ?? 'trial'}
+                            onChange={e => setTenantTier(t.id, e.target.value)}
+                            style={{
+                              background: 'var(--cream)', color: 'var(--ink)',
+                              border: '1px solid var(--fog)', borderRadius: 6,
+                              padding: '3px 8px', fontSize: 11,
+                              fontFamily: 'var(--font-mono)', cursor: 'pointer',
+                            }}
+                          >
+                            <option value="trial">Trial</option>
+                            <option value="paid">Paid</option>
+                            <option value="enterprise">Enterprise</option>
+                          </select>
                           <button onClick={() => toggleTenant(t.id, t.active)} style={{ ...ghostBtn, color: t.active ? '#A32D2D' : 'var(--forest)' }}>
                             {t.active ? 'Deactivate' : 'Activate'}
                           </button>

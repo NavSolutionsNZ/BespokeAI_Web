@@ -5,6 +5,7 @@ import { authOptions } from '@/lib/auth'
 import { getTenantById, buildODataUrl } from '@/lib/tenants'
 import { getEntitiesSummary } from '@/lib/bc-entities'
 import { prisma } from '@/lib/db'
+import { checkTierAccess } from '@/lib/tier'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -53,7 +54,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  // 2. Parse body
+  // 2. Tier gate — block expired trials
+  const tierStatus = await checkTierAccess(session.user.tenantId)
+  if (!tierStatus.allowed) {
+    return NextResponse.json(
+      {
+        error: 'tier_blocked',
+        reason: tierStatus.reason,
+        trialEndsAt: 'trialEndsAt' in tierStatus ? tierStatus.trialEndsAt : null,
+      },
+      { status: 402 }
+    )
+  }
+
+  // 3. Parse body
   const body = await req.json().catch(() => ({}))
   const question: string = body.question?.trim() ?? ''
   if (!question) {

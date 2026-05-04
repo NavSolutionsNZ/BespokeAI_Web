@@ -19,6 +19,8 @@ model Tenant {
   entityConfig    Json?
   tunnelId        String?
   country         String   @default("NZ")   // ISO country code for CFO/tax context
+  tier            String   @default("trial") // "trial" | "paid" | "enterprise"
+  trialEndsAt     DateTime?                  // null = no expiry (paid/enterprise)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
   users           User[]

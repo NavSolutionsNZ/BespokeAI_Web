@@ -25,6 +25,7 @@ interface QueryPlan {
 }
 
 export type DisplayHint = 'narrative' | 'kpi' | 'table' | 'bar_chart' | 'line_chart'
+export type QueryMode   = 'data' | 'generic'
 
 export interface StructuredData {
   // Used for table, bar_chart, line_chart
@@ -60,6 +61,83 @@ export async function POST(req: NextRequest) {
   const tenant = await getTenantById(session.user.tenantId)
   if (!tenant) {
     return NextResponse.json({ error: 'Tenant not configured' }, { status: 404 })
+  }
+
+  // ── Step 0: Route — does this question need live BC data? ──────────────────
+  // Fast GPT call to classify before hitting the full 3-step pipeline.
+
+  const COUNTRY_MAP: Record<string, string> = {
+    NZ: 'New Zealand', AU: 'Australia', GB: 'United Kingdom',
+    US: 'United States', ID: 'Indonesia', SG: 'Singapore', MY: 'Malaysia',
+  }
+  const countryName = COUNTRY_MAP[tenant.country] ?? tenant.country
+
+  const PERSONA = `You are an expert Microsoft Business Central v14 functional consultant and a senior CFO advisor specialising in ${countryName} accounting, tax, and financial reporting standards. You have deep knowledge of BC/NAV configuration, chart of accounts, GST/VAT, and local compliance requirements.`
+
+  let queryMode: QueryMode = 'data'
+  let genericAnswer: { answer: string; suggestedQueries: string[] } | null = null
+
+  try {
+    const routeRes = await openai.chat.completions.create({
+      model: 'gpt-4o',
+      max_tokens: 600,
+      response_format: { type: 'json_object' },
+      messages: [
+        {
+          role: 'system',
+          content: `${PERSONA}
+
+Classify whether the user's question requires live Business Central data to answer, or can be answered from general BC/accounting/CFO knowledge.
+
+Return JSON:
+{
+  "needsData": true | false,
+  "reason": "one sentence",
+  "answer": "if needsData=false: full expert answer (2-6 sentences, professional CFO tone)",
+  "suggestedQueries": ["if needsData=false: 2-3 specific BC data questions the user could ask to get relevant numbers from their live data"]
+}
+
+needsData=true for: questions about their specific numbers, customers, invoices, balances, transactions, reports on their data.
+needsData=false for: accounting concepts, BC how-to questions, ratio definitions, best practices, what-is questions, strategic CFO advice.`,
+        },
+        { role: 'user', content: question },
+      ],
+    })
+
+    const routeRaw  = routeRes.choices[0].message.content ?? '{}'
+    const routeClean = routeRaw.replace(/^```[a-z]*\n?/, '').replace(/```$/, '').trim()
+    const routeData  = JSON.parse(routeClean)
+
+    if (!routeData.needsData) {
+      queryMode     = 'generic'
+      genericAnswer = {
+        answer:           routeData.answer ?? 'I can help with that.',
+        suggestedQueries: routeData.suggestedQueries ?? [],
+      }
+    }
+  } catch {
+    // Classification failed — default to data query
+    queryMode = 'data'
+  }
+
+  // Return generic answer immediately — no BC data fetch needed
+  if (queryMode === 'generic' && genericAnswer) {
+    // Still log to history
+    prisma.queryLog.create({
+      data: {
+        tenantId: tenant.tenantId, userId: (session.user as any).id,
+        question, answer: genericAnswer.answer,
+        displayHint: 'narrative', entity: null, recordCount: 0,
+      },
+    }).catch(() => {})
+
+    return NextResponse.json({
+      answer:          genericAnswer.answer,
+      displayHint:     'narrative' as DisplayHint,
+      data:            null,
+      suggestedQueries: genericAnswer.suggestedQueries,
+      meta: { entity: null, reasoning: 'Generic knowledge question — no BC data required', recordCount: 0, odataUrl: null },
+    })
   }
 
   // ── Step 1: Plan — which BC entity & OData params? ──────────────────────
@@ -238,7 +316,9 @@ For time-series / "by month" / "over last N months" / trend questions:
       messages: [
         {
           role: 'system',
-          content: `You are a senior financial data analyst presenting Business Central data to a CFO at ${tenant.name}.
+          content: `${PERSONA}
+
+You are presenting live Business Central data to the CFO at ${tenant.name}.
 
 Your response MUST be a single valid JSON object with this exact shape:
 {

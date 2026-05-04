@@ -37,6 +37,7 @@ interface QueryResult {
   error?: string
   errorDetail?: string
   errorUrl?: string
+  suggestedQueries?: string[]
   ts: Date
   loading?: boolean
 }
@@ -107,6 +108,8 @@ export default function DashboardPage() {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [queryLogs, setQueryLogs]         = useState<QueryLogItem[]>([])
   const [showChangePw, setShowChangePw]   = useState(false)
+  const [exportItem, setExportItem]       = useState<QueryResult | null>(null)
+  const [exportText, setExportText]       = useState('')
   const [pwForm, setPwForm]               = useState({ current: '', next: '', confirm: '' })
   const [pwSaving, setPwSaving]           = useState(false)
   const [pwError, setPwError]             = useState('')
@@ -172,6 +175,7 @@ export default function DashboardPage() {
         answer: data.answer ?? '', displayHint: data.displayHint,
         data: data.data, meta: data.meta, error: data.error,
         errorDetail: data.detail, errorUrl: data.odataUrl,
+        suggestedQueries: data.suggestedQueries,
       }))
       if (!data.error) {
         setTimeout(() => {
@@ -587,6 +591,24 @@ export default function DashboardPage() {
                             {item.answer}
                           </p>
 
+                          {/* Suggested queries for generic answers */}
+                          {item.suggestedQueries && item.suggestedQueries.length > 0 && (
+                            <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--fog)' }}>
+                              <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--slate)', marginBottom: 8 }}>
+                                Ask about your data
+                              </div>
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                                {item.suggestedQueries.map((q, i) => (
+                                  <button key={i} onClick={() => { setQuestion(q); textareaRef.current?.focus() }}
+                                    style={{ background: 'var(--cream)', border: '1px solid var(--fog)', borderRadius: 8, padding: '6px 12px', cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: 12, color: 'var(--slate)', transition: 'border-color 0.15s' }}
+                                    onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--emerald)'; e.currentTarget.style.color = 'var(--forest)' }}
+                                    onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--fog)'; e.currentTarget.style.color = 'var(--slate)' }}
+                                  >{q}</button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
                           {/* Chart / table / KPI visualizer */}
                           {item.displayHint && item.displayHint !== 'narrative' && item.data && (
                             <div style={{ marginBottom: item.meta ? 18 : 0 }}>
@@ -597,6 +619,12 @@ export default function DashboardPage() {
                           {/* Meta footer */}
                           {item.meta && (
                             <div style={{ borderTop: '1px solid var(--fog)', paddingTop: 12, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                              <button
+                                onClick={() => { setExportItem(item); setExportText(item.answer) }}
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--slate)', padding: 0, marginLeft: 'auto' }}
+                              >
+                                ↓ Export PDF
+                              </button>
                               {item.displayHint && item.displayHint !== 'narrative' && (
                                 <span style={{
                                   background: 'rgba(10,92,70,0.08)', border: '1px solid rgba(10,92,70,0.2)',
@@ -705,6 +733,55 @@ export default function DashboardPage() {
           </div>
         )}
       </div>
+
+      {/* PDF export modal */}
+      {exportItem && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(4,14,9,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 24 }}>
+          <div style={{ background: 'var(--white)', borderRadius: 16, padding: '28px 32px', width: 640, maxWidth: '100%', maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 8px 40px rgba(4,14,9,0.2)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 500, color: 'var(--ink)', margin: 0 }}>Export as PDF</h2>
+              <button onClick={() => setExportItem(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--slate)', fontSize: 20 }}>✕</button>
+            </div>
+            <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: 'var(--slate)', marginBottom: 12 }}>Edit the text below before saving. Charts and tables will not be included in this version.</p>
+            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--slate)', marginBottom: 6 }}>Question</div>
+            <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'var(--ink)', marginBottom: 16, padding: '10px 12px', background: 'var(--parchment)', borderRadius: 8 }}>{exportItem.question}</p>
+            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--slate)', marginBottom: 6 }}>Answer</div>
+            <textarea
+              value={exportText}
+              onChange={e => setExportText(e.target.value)}
+              style={{ flex: 1, minHeight: 200, background: 'var(--cream)', border: '1px solid var(--fog)', borderRadius: 8, padding: '12px', fontSize: 13, fontFamily: 'var(--font-body)', color: 'var(--ink)', resize: 'vertical', outline: 'none', lineHeight: 1.7 }}
+              onFocus={e => (e.target.style.borderColor = 'var(--forest)')}
+              onBlur={e => (e.target.style.borderColor = 'var(--fog)')}
+            />
+            <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
+              <button
+                onClick={() => {
+                  const w = window.open('', '_blank')!
+                  w.document.write(`<!DOCTYPE html><html><head><title>BespoxAI — ${exportItem.question.slice(0,60)}</title><style>
+                    body { font-family: Georgia, serif; max-width: 720px; margin: 40px auto; color: #1a1a1a; line-height: 1.7; }
+                    .logo { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: #888; margin-bottom: 32px; }
+                    .question { font-size: 18px; font-weight: 600; margin-bottom: 24px; color: #0a5c46; }
+                    .answer { font-size: 15px; white-space: pre-wrap; }
+                    .meta { font-size: 11px; color: #888; margin-top: 32px; border-top: 1px solid #eee; padding-top: 16px; }
+                    @media print { body { margin: 20px; } }
+                  </style></head><body>
+                    <div class="logo">BespoxAI · ${tenantName} · ${new Date().toLocaleDateString('en-NZ', { dateStyle: 'long' })}</div>
+                    <div class="question">${exportItem.question}</div>
+                    <div class="answer">${exportText.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>
+                    <div class="meta">Generated by BespoxAI CFO Assistant · ${exportItem.ts.toLocaleString()}</div>
+                  </body></html>`)
+                  w.document.close()
+                  setTimeout(() => { w.print(); }, 300)
+                }}
+                style={{ background: 'var(--forest)', color: 'var(--white)', border: 'none', borderRadius: 8, padding: '9px 20px', cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500 }}
+              >
+                Save as PDF
+              </button>
+              <button onClick={() => setExportItem(null)} style={{ background: 'var(--fog)', color: 'var(--ink)', border: 'none', borderRadius: 8, padding: '9px 16px', cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: 13 }}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Change password modal */}
       {showChangePw && (

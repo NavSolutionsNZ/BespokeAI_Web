@@ -16,8 +16,9 @@ model Tenant {
   bcCompany       String   @default("GWM")        // BC company name for OData
   apiKey          String                          // X-BespoxAI-Key header value
   active          Boolean  @default(true)
-  entityConfig    Json?                          // { "Customer": true, "Vendor": false, ... }
-  tunnelId        String?                        // Cloudflare tunnel UUID
+  entityConfig    Json?
+  tunnelId        String?
+  country         String   @default("NZ")   // ISO country code for CFO/tax context
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
   users           User[]

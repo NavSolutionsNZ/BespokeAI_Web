@@ -18,12 +18,13 @@ export const BC_ENTITIES = {
     ],
   },
   SalesOrder: {
-    description: 'Open (unposted) sales orders',
+    description: 'Open (unposted) sales orders — header only, no Amount fields. Use SalesOrderSalesLines for amounts. Status_Code not Status.',
     keyField: 'No',
     usefulFields: [
       'No', 'Sell_to_Customer_No', 'Sell_to_Customer_Name',
-      'Order_Date', 'Amount', 'Amount_Including_VAT', 'Status',
-      'Requested_Delivery_Date',
+      'Order_Date', 'Posting_Date', 'Due_Date', 'Shipment_Date',
+      'Status_Code', 'Salesperson_Code', 'Payment_Terms_Code',
+      'Location_Code', 'Shortcut_Dimension_1_Code', 'Shortcut_Dimension_2_Code',
     ],
   },
   SalesOrderSalesLines: {
@@ -81,12 +82,13 @@ export const BC_ENTITIES = {
     ],
   },
   PurchaseOrder: {
-    description: 'Open (unposted) purchase orders',
+    description: 'Open (unposted) purchase orders — header only, no Amount fields. Use PurchaseOrderPurchLines for amounts. Status_Code not Status.',
     keyField: 'No',
     usefulFields: [
       'No', 'Buy_from_Vendor_No', 'Buy_from_Vendor_Name',
-      'Order_Date', 'Amount', 'Amount_Including_VAT', 'Status',
-      'Expected_Receipt_Date',
+      'Order_Date', 'Posting_Date', 'Due_Date', 'Expected_Receipt_Date',
+      'Status_Code', 'Purch_Order_Type', 'Purchaser_Code', 'Payment_Terms_Code',
+      'Location_Code', 'Shortcut_Dimension_1_Code',
     ],
   },
   PurchaseOrderPurchLines: {
@@ -130,7 +132,7 @@ export const BC_ENTITIES = {
 
   // --- Finance ---
   GeneralLedgerEntry: {
-    description: 'Item ledger entries — inventory movements (purchases and sales of physical items/vehicles). Entry_Type is Purchase or Sale. Amount is cost value. Has Posting_Date. Use for inventory cost queries, vehicle movement history, sales/purchase volume by item.',
+    description: 'Item ledger entries — inventory movements (vehicle/parts purchases and sales). Entry_Type is Purchase or Sale. Amount is cost value. Has Posting_Date. Use for stock movement, vehicle sales history, inventory cost queries. NOT a financial GL — no account numbers.',
     keyField: 'Entry_No',
     usefulFields: [
       'Entry_No', 'Posting_Date', 'Entry_Type', 'Document_No',

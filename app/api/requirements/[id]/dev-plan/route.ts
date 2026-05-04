@@ -9,47 +9,50 @@ export const maxDuration = 60
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
 
-const DEV_PLAN_SYSTEM = `You are a senior Microsoft Dynamics 365 Business Central / NAV developer and technical lead with 20+ years of experience delivering BC customisations on-premise and SaaS. You are writing an INTERNAL development plan for your team — not for the customer.
+const DEV_PLAN_SYSTEM = `You are a senior Microsoft Dynamics 365 Business Central / NAV developer and technical lead with 20+ years experience. You are writing an INTERNAL development plan — not for the customer.
 
-Your plan must be detailed enough to:
-- Allow a developer to start work immediately
-- Support accurate time and cost estimation
-- Identify all technical risks upfront
-- Define a clear testing and deployment strategy
+Your plan must allow a developer to start work immediately, support accurate quoting, identify all risks, and define testing/deployment strategy.
 
-Respond ONLY with valid JSON — no markdown, no preamble:
+CRITICAL REQUIREMENT: For every Development phase task, include a codeSnippet with:
+- Exact AL code (or C/AL for NAV/BC14) ready to paste
+- Precise object names, field numbers, trigger names matching standard BC objects  
+- Placement instructions: which file, which section (fields/triggers/procedures), where to insert
+- Use tableextension/pageextension/codeunit/reportextension patterns correctly
+
+Respond ONLY with valid JSON, no markdown:
 {
-  "summary": "2-3 sentence technical overview of what will be built and the core approach",
-  "approach": "Detailed technical approach — which AL patterns to use, extension architecture, any 3rd party dependencies",
+  "summary": "2-3 sentence technical overview of what will be built",
+  "approach": "Detailed technical approach — AL patterns, extension architecture, version-specific considerations",
   "tasks": [
     {
-      "title": "Short task title",
-      "description": "Detailed description of exactly what code changes are required",
-      "objects": ["Table 36 Sales Header — add field X (Option type)", "Page 42 Sales Order — add field to FastTab Y"],
+      "title": "Task title",
+      "description": "Detailed description of code changes required",
+      "objects": ["Table 36 Sales Header — add field 50100 Approval_Status (Option)"],
       "estimatedHours": 4,
-      "phase": "Development | Testing | Deployment | Documentation"
+      "phase": "Development",
+      "codeSnippet": {
+        "filename": "SalesHeaderExt.TableExt.al",
+        "placement": "New file in extension project src/ folder",
+        "code": "tableextension 50100 SalesHeaderExt extends \"Sales Header\"\\n{\\n    fields\\n    {\\n        field(50100; \\\"Approval Status\\\"; Option)\\n        {\\n            OptionMembers = Open,Pending,Approved,Rejected;\\n            Caption = 'Approval Status';\\n            DataClassification = CustomerContent;\\n        }\\n    }\\n}"
+      }
     }
   ],
   "totalEstimatedHours": 24,
   "suggestedDailyRate": 1200,
-  "quotingNotes": "Internal notes on pricing — complexity factors, risks to margin, what to watch for in scope creep, whether to quote fixed-price or T&M",
-  "risks": [
-    "Risk: BC version-specific limitation or gotcha — mitigation approach"
-  ],
-  "testingPlan": "Specific test scenarios required — unit, integration, UAT. What the customer must sign off on.",
-  "deploymentNotes": "How to deploy — extension packaging, environment promotion steps, data migration if needed, rollback plan",
-  "assumptions": [
-    "Any assumption that if wrong would change the estimate significantly"
-  ]
+  "quotingNotes": "Internal pricing notes — complexity, margin risks, fixed-price vs T&M, scope creep vectors",
+  "risks": ["Risk description — specific mitigation approach"],
+  "testingPlan": "Specific test scenarios — unit, integration, UAT. What customer must sign off.",
+  "deploymentNotes": "Extension packaging, environment promotion, data migration if needed, rollback plan",
+  "assumptions": ["Assumption that if wrong would materially change the estimate"]
 }
 
 Rules:
-- Be ruthlessly specific about AL objects and code patterns
-- estimatedHours per task should be realistic — include thinking/design time not just typing time
-- suggestedDailyRate is in NZD — typical BC developer rate
-- quotingNotes is for YOUR eyes only — be candid about risk, margin, and what to watch for
-- risks must include mitigation approaches, not just problems
-- totalEstimatedHours should sum the tasks (add 15-20% contingency)`
+- codeSnippet REQUIRED for every Development task — this is the primary value of this plan
+- Use exact BC object IDs and field numbers from standard BC object model
+- estimatedHours: include design/thinking time, not just typing
+- suggestedDailyRate in NZD (typical BC dev rate: $1000-$1500/day)
+- quotingNotes: be candid about risk and margin — internal only
+- totalEstimatedHours: sum tasks + 15-20% contingency`
 
 // POST /api/requirements/[id]/dev-plan — SUPERADMIN ONLY
 export async function POST(
@@ -69,6 +72,7 @@ export async function POST(
 
   // BC version lookup
   let bcVersion = 'Business Central (version not specified)'
+  let bcInstance = req_data.tenant?.bcInstance ?? null
   try {
     const signup = await (prisma as any).signupRequest.findFirst({
       where: { companyName: { contains: req_data.tenant.name.split(' ')[0] } },
@@ -84,8 +88,8 @@ export async function POST(
         NAV2018: 'NAV 2018 (C/AL)', NAV2017: 'NAV 2017 (C/AL)', NAV2016: 'NAV 2016 (C/AL)',
       }
       bcVersion = vMap[signup.bcVersion] ?? signup.bcVersion
-    } else if (req_data.tenant.bcInstance) {
-      bcVersion = `Business Central (instance: ${req_data.tenant.bcInstance})`
+    } else if (bcInstance) {
+      bcVersion = `Business Central (instance: ${bcInstance})`
     }
   } catch { /* use default */ }
 
@@ -97,7 +101,7 @@ export async function POST(
       specContext = [
         spec.userStory ? `User Story: ${spec.userStory}` : '',
         spec.acceptanceCriteria?.length ? `Acceptance Criteria:\n${spec.acceptanceCriteria.map((c: string, i: number) => `${i+1}. ${c}`).join('\n')}` : '',
-        spec.bcObjects?.length ? `BC Objects identified: ${spec.bcObjects.join(', ')}` : '',
+        spec.bcObjects?.length ? `BC Objects identified:\n${spec.bcObjects.map((o: string) => `- ${o}`).join('\n')}` : '',
         spec.complexity ? `Estimated complexity: ${spec.complexity} (~${spec.estimatedDays} days)` : '',
         spec.assumptions?.length ? `Assumptions: ${spec.assumptions.join('; ')}` : '',
         spec.notes ? `Technical notes: ${spec.notes}` : '',
@@ -105,7 +109,7 @@ export async function POST(
     }
   } catch { /* ignore */ }
 
-  // Parse Q&A for additional context
+  // Parse Q&A
   let qaContext = ''
   try {
     if (req_data.customerAnswers) {
@@ -120,10 +124,15 @@ export async function POST(
     if (req_data.customerAnswers) qaContext = `Customer context: ${req_data.customerAnswers}`
   }
 
+  const bcNote = bcInstance
+    ? `BC Instance: ${bcInstance} (tenant has a live BC connection — AL code should target this instance's version)`
+    : `Note: No live BC instance connected for this tenant. Plan based on version info only. Standard AL patterns assumed.`
+
   const prompt = [
-    `INTERNAL DEVELOPMENT PLAN REQUEST`,
+    `INTERNAL DEVELOPMENT PLAN`,
     `Customer: ${req_data.tenant.name}`,
     `BC Version: ${bcVersion}`,
+    bcNote,
     `Area: ${req_data.bcArea} | Priority: ${req_data.priority.replace(/_/g, ' ')}`,
     ``,
     `--- REQUIREMENT ---`,
@@ -134,7 +143,7 @@ export async function POST(
     qaContext ? `\n${qaContext}` : '',
     specContext ? `\n--- FUNCTIONAL SPEC CONTEXT ---\n${specContext}` : '',
     ``,
-    `Generate a detailed internal development plan for quoting and planning purposes.`,
+    `Generate a detailed internal development plan with AL code snippets for every development task.`,
   ].filter(Boolean).join('\n')
 
   let plan: object

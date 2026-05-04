@@ -1029,16 +1029,20 @@ function CredentialBanner({ title, label, value, onDismiss }: { title: string; l
 
 // ─── Admin Requirements Tab ────────────────────────────────────────────────────
 
-const STATUS_PIPELINE_ADMIN = ['draft','submitted','in_review','quoted','approved','in_development','complete','rejected']
+const STATUS_PIPELINE_ADMIN = ['draft','submitted','needs_clarification','in_review','quoted','quote_rejected','deposit_required','deposit_paid','in_development','complete_pending_payment','fully_paid','rejected']
 const STATUS_COLOR_ADMIN: Record<string, { bg: string; border: string; text: string }> = {
-  draft:          { bg: 'rgba(59,82,73,0.06)',   border: 'rgba(59,82,73,0.15)',   text: '#3B5249' },
-  submitted:      { bg: 'rgba(200,149,42,0.08)', border: 'rgba(200,149,42,0.25)', text: '#C8952A' },
-  in_review:      { bg: 'rgba(200,149,42,0.12)', border: 'rgba(200,149,42,0.35)', text: '#9A6A00' },
-  quoted:         { bg: 'rgba(10,92,70,0.08)',   border: 'rgba(10,92,70,0.2)',    text: '#0A5C46' },
-  approved:       { bg: 'rgba(10,92,70,0.12)',   border: 'rgba(10,92,70,0.3)',    text: '#085040' },
-  in_development: { bg: 'rgba(14,110,86,0.1)',   border: 'rgba(14,110,86,0.25)', text: '#0A5C46' },
-  complete:       { bg: 'rgba(26,146,114,0.1)',  border: 'rgba(26,146,114,0.3)', text: '#0F6E56' },
-  rejected:       { bg: 'rgba(163,45,45,0.06)',  border: 'rgba(163,45,45,0.2)',  text: '#A32D2D' },
+  draft:                    { bg: 'rgba(59,82,73,0.06)',   border: 'rgba(59,82,73,0.15)',   text: '#3B5249' },
+  submitted:                { bg: 'rgba(200,149,42,0.08)', border: 'rgba(200,149,42,0.25)', text: '#C8952A' },
+  needs_clarification:      { bg: 'rgba(200,60,60,0.1)',   border: 'rgba(200,60,60,0.35)',  text: '#A32D2D' },
+  in_review:                { bg: 'rgba(200,149,42,0.12)', border: 'rgba(200,149,42,0.35)', text: '#9A6A00' },
+  quoted:                   { bg: 'rgba(10,92,70,0.08)',   border: 'rgba(10,92,70,0.2)',    text: '#0A5C46' },
+  quote_rejected:           { bg: 'rgba(163,45,45,0.14)', border: 'rgba(163,45,45,0.45)',  text: '#8B1A1A' },
+  deposit_required:         { bg: 'rgba(200,149,42,0.12)', border: 'rgba(200,149,42,0.4)', text: '#7A5200' },
+  deposit_paid:             { bg: 'rgba(26,146,114,0.1)',  border: 'rgba(26,146,114,0.3)', text: '#0F6E56' },
+  in_development:           { bg: 'rgba(14,110,86,0.1)',   border: 'rgba(14,110,86,0.25)', text: '#0A5C46' },
+  complete_pending_payment: { bg: 'rgba(200,149,42,0.1)',  border: 'rgba(200,149,42,0.3)', text: '#7A5200' },
+  fully_paid:               { bg: 'rgba(26,146,114,0.12)', border: 'rgba(26,146,114,0.35)',text: '#0A5240' },
+  rejected:                 { bg: 'rgba(163,45,45,0.14)', border: 'rgba(163,45,45,0.45)',  text: '#8B1A1A' },
 }
 const PRIORITY_LABEL: Record<string, string> = { nice_to_have: 'Nice to have', important: 'Important', critical: 'Critical' }
 const PRIORITY_COLOR: Record<string, string> = { nice_to_have: '#3B5249', important: '#C8952A', critical: '#A32D2D' }
@@ -1373,10 +1377,27 @@ function AdminRequirementsTab() {
                               </div>
                               {task.description && <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'rgba(214,217,212,0.6)', lineHeight: 1.55, marginBottom: task.objects?.length ? 6 : 0 }}>{task.description}</p>}
                               {task.objects?.length > 0 && (
-                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: task.codeSnippet ? 8 : 0 }}>
                                   {task.objects.map((o: string, j: number) => (
                                     <span key={j} style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'rgba(214,217,212,0.45)', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 4, padding: '2px 6px' }}>{o}</span>
                                   ))}
+                                </div>
+                              )}
+                              {task.codeSnippet && (
+                                <div style={{ marginTop: 8 }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--jade)' }}>
+                                      {task.codeSnippet.filename}
+                                    </span>
+                                  </div>
+                                  {task.codeSnippet.placement && (
+                                    <p style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'rgba(214,217,212,0.4)', marginBottom: 5, fontStyle: 'italic' }}>
+                                      📍 {task.codeSnippet.placement}
+                                    </p>
+                                  )}
+                                  <pre style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'rgba(214,217,212,0.85)', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 5, padding: '10px 12px', overflowX: 'auto', margin: 0, lineHeight: 1.6, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                                    {task.codeSnippet.code}
+                                  </pre>
                                 </div>
                               )}
                             </div>
@@ -1438,9 +1459,10 @@ function AdminRequirementsTab() {
             )}
 
             {/* Quote info */}
+            {selected.quote && (
               <div style={{ background: 'rgba(10,92,70,0.05)', border: '1px solid rgba(10,92,70,0.2)', borderRadius: 8, padding: '12px 14px' }}>
                 <p style={{ fontFamily: 'var(--font-mono)', fontSize: 8, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--slate)', marginBottom: 6 }}>Quote</p>
-                <p style={{ fontFamily: 'var(--font-display)', fontSize: 26, fontWeight: 500, color: 'var(--forest)', lineHeight: 1 }}>${parseFloat(selected.quote).toLocaleString()}</p>
+                <p style={{ fontFamily: 'var(--font-display)', fontSize: 26, fontWeight: 500, color: 'var(--forest)', lineHeight: 1 }}>${parseFloat(selected.quote!).toLocaleString()}</p>
                 {selected.consultantNote && <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'var(--slate)', marginTop: 8, lineHeight: 1.6 }}>{selected.consultantNote}</p>}
                 {selected.quoteApprovedAt && <p style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--jade)', marginTop: 6 }}>✓ Approved {new Date(selected.quoteApprovedAt).toLocaleDateString('en-NZ')}</p>}
               </div>
@@ -1459,13 +1481,19 @@ function AdminRequirementsTab() {
               {selected.status === 'quote_rejected' && (
                 <button onClick={() => { setShowQF(true); setShowSB(false) }} disabled={actionLoading} style={{ ...btnStyle }}>$ Revise Quote</button>
               )}
-              {selected.status === 'approved' && (
-                <button onClick={() => patch(selected.id, { status: 'in_development' })} disabled={actionLoading} style={{ ...btnStyle }}>→ Start Dev</button>
+              {selected.status === 'deposit_required' && (
+                <button onClick={() => patch(selected.id, { status: 'deposit_paid' })} disabled={actionLoading} style={{ ...btnStyle, background: '#0F6E56' }}>✓ Confirm Deposit Received</button>
+              )}
+              {selected.status === 'deposit_paid' && (
+                <button onClick={() => patch(selected.id, { status: 'in_development' })} disabled={actionLoading} style={{ ...btnStyle }}>→ Start Development</button>
               )}
               {selected.status === 'in_development' && (
-                <button onClick={() => patch(selected.id, { status: 'complete' })} disabled={actionLoading} style={{ ...btnStyle, background: '#0A5C46' }}>✓ Complete</button>
+                <button onClick={() => patch(selected.id, { status: 'complete_pending_payment' })} disabled={actionLoading} style={{ ...btnStyle, background: '#0F6E56' }}>✓ Complete — Request Balance</button>
               )}
-              {!['complete', 'rejected'].includes(selected.status) && (
+              {selected.status === 'complete_pending_payment' && (
+                <button onClick={() => patch(selected.id, { status: 'fully_paid' })} disabled={actionLoading} style={{ ...btnStyle, background: '#085040' }}>✓ Confirm Balance Received</button>
+              )}
+              {!['fully_paid', 'rejected'].includes(selected.status) && (
                 <button onClick={() => patch(selected.id, { status: 'rejected' })} disabled={actionLoading} style={{ ...btnStyle, background: 'var(--fog)', color: '#A32D2D' }}>✕ Reject</button>
               )}
             </div>

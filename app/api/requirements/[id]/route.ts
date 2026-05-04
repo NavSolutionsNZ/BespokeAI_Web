@@ -26,33 +26,50 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     if (body.consultantNote !== undefined)       updateData.consultantNote       = body.consultantNote
     if (body.aiSpec !== undefined)               updateData.aiSpec               = body.aiSpec
     if (body.adminQuestions !== undefined)       updateData.adminQuestions       = body.adminQuestions
-    if (body.status === 'approved' && !existing.quoteApprovedAt)
-      updateData.quoteApprovedAt = new Date()
     if (body.status === 'needs_clarification' && body.adminQuestions)
       updateData.adminQuestions = body.adminQuestions
+    // Admin marks deposit paid
+    if (body.status === 'deposit_paid') {
+      updateData.status = 'deposit_paid'
+      updateData.depositPaidAt = new Date()
+    }
+    // Admin marks balance paid → fully_paid
+    if (body.status === 'fully_paid') {
+      updateData.status = 'fully_paid'
+      updateData.balancePaidAt = new Date()
+    }
+    // Admin starts dev after deposit confirmed
+    if (body.status === 'in_development' && existing.status === 'deposit_paid') {
+      updateData.status = 'in_development'
+    }
+    // Admin marks complete (→ balance required)
+    if (body.status === 'complete_pending_payment' && existing.status === 'in_development') {
+      updateData.status = 'complete_pending_payment'
+    }
   } else {
+    // Customer / tenant_admin
     const { status, title, description, bcArea, priority, customerAnswers, quoteRejectionReason } = body
 
     // Submit (draft → submitted, or needs_clarification → submitted)
-    if (status === 'submitted' && (existing.status === 'draft' || existing.status === 'needs_clarification')) {
+    if (status === 'submitted' && ['draft', 'needs_clarification', 'quote_rejected'].includes(existing.status)) {
       updateData.status = 'submitted'
     }
-    // Approve quote
-    if (status === 'approved' && existing.status === 'quoted') {
-      updateData.status = 'approved'
+    // Approve quote → deposit_required (20% deposit)
+    if (status === 'deposit_required' && existing.status === 'quoted') {
+      updateData.status = 'deposit_required'
       updateData.quoteApprovedAt = new Date()
+      // Auto-calculate 20% deposit
+      if (existing.quote) {
+        updateData.depositAmount = parseFloat(existing.quote.toString()) * 0.2
+      }
     }
-    // Reject quote — customer provides reason
+    // Reject quote
     if (status === 'quote_rejected' && existing.status === 'quoted') {
       updateData.status = 'quote_rejected'
       updateData.quoteRejectedAt = new Date()
       updateData.quoteRejectionReason = quoteRejectionReason ?? ''
     }
-    // Resubmit after quote rejection
-    if (status === 'submitted' && existing.status === 'quote_rejected') {
-      updateData.status = 'submitted'
-    }
-    // Edit while editable
+    // Edit while in editable states
     if (['draft', 'needs_clarification', 'quote_rejected'].includes(existing.status)) {
       if (title !== undefined)           updateData.title           = title.trim()
       if (description !== undefined)     updateData.description     = description.trim()

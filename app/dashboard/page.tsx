@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic'
 
 import { useState, useRef, useEffect, KeyboardEvent } from 'react'
 import { useSession, signOut } from 'next-auth/react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import type { DisplayHint, StructuredData } from '@/app/api/query/route'
 import DataVisualizer from '@/components/DataVisualizer'
 import { UpgradePrompt } from '@/components/UpgradePrompt'
@@ -129,12 +129,29 @@ function useHealthStatus(): HealthStatus {
 
 export default function DashboardPage() {
   const { data: session } = useSession()
-  const router = useRouter()
+  const router     = useRouter()
+  const pathname   = usePathname()
+  const searchParams = useSearchParams()
   const user = session?.user as any
   const isTenantAdmin = user?.role === 'tenant_admin' || user?.role === 'superadmin'
   const health = useHealthStatus()
 
-  const [activeNav, setActiveNav] = useState<NavItem>('assistant')
+  // Persist active nav in URL ?view=xxx so refresh lands on the same tab
+  const viewParam = (searchParams.get('view') as NavItem | null) ?? 'assistant'
+  const [activeNav, setActiveNavState] = useState<NavItem>(viewParam)
+
+  function setActiveNav(item: NavItem) {
+    setActiveNavState(item)
+    const params = new URLSearchParams(searchParams.toString())
+    params.set('view', item)
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false })
+  }
+
+  // Sync if URL changes externally (back/forward)
+  useEffect(() => {
+    const v = (searchParams.get('view') as NavItem | null) ?? 'assistant'
+    setActiveNavState(v)
+  }, [searchParams])
   const [question, setQuestion]   = useState('')
   const [history, setHistory]     = useState<QueryResult[]>([])
   const [showMeta, setShowMeta]   = useState<string | null>(null)

@@ -6,6 +6,7 @@ export interface Requirement {
   id: string; tenantId: string; userId: string; title: string; description: string
   bcArea: string; priority: string; aiSpec: string | null; status: string
   quote: string | null; quoteApprovedAt: string | null; consultantNote: string | null
+  depositAmount: string | null; depositPaidAt: string | null; balancePaidAt: string | null
   adminQuestions: string | null; customerAnswers: string | null
   quoteRejectedAt: string | null; quoteRejectionReason: string | null
   createdAt: string; updatedAt: string
@@ -30,23 +31,31 @@ const PRIORITIES = [
 const STATUS_PIPELINE = [
   {key:'draft',label:'Draft'},{key:'submitted',label:'Submitted'},
   {key:'in_review',label:'In Review'},{key:'quoted',label:'Quoted'},
-  {key:'approved',label:'Approved'},{key:'in_development',label:'In Development'},{key:'complete',label:'Complete'},
+  {key:'deposit_required',label:'Deposit Required'},{key:'deposit_paid',label:'Deposit Paid'},
+  {key:'in_development',label:'In Development'},{key:'complete_pending_payment',label:'Balance Due'},
+  {key:'fully_paid',label:'Complete'},
 ]
 const STATUS_COLOR: Record<string,{bg:string;border:string;text:string}> = {
-  draft:               {bg:'rgba(59,82,73,0.06)',   border:'rgba(59,82,73,0.15)',   text:'#3B5249'},
-  submitted:           {bg:'rgba(200,149,42,0.08)', border:'rgba(200,149,42,0.25)', text:'#C8952A'},
-  needs_clarification: {bg:'rgba(163,45,45,0.07)',  border:'rgba(163,45,45,0.25)',  text:'#A32D2D'},
-  in_review:           {bg:'rgba(200,149,42,0.12)', border:'rgba(200,149,42,0.35)', text:'#9A6A00'},
-  quoted:              {bg:'rgba(10,92,70,0.08)',   border:'rgba(10,92,70,0.2)',    text:'#0A5C46'},
-  approved:            {bg:'rgba(10,92,70,0.12)',   border:'rgba(10,92,70,0.3)',    text:'#085040'},
-  in_development:      {bg:'rgba(14,110,86,0.1)',   border:'rgba(14,110,86,0.25)', text:'#0A5C46'},
-  complete:            {bg:'rgba(26,146,114,0.1)',  border:'rgba(26,146,114,0.3)', text:'#0F6E56'},
-  rejected:            {bg:'rgba(163,45,45,0.06)',  border:'rgba(163,45,45,0.2)',  text:'#A32D2D'},
-  quote_rejected:      {bg:'rgba(163,45,45,0.08)', border:'rgba(163,45,45,0.3)',  text:'#A32D2D'},
+  draft:                    {bg:'rgba(59,82,73,0.06)',   border:'rgba(59,82,73,0.15)',   text:'#3B5249'},
+  submitted:                {bg:'rgba(200,149,42,0.08)', border:'rgba(200,149,42,0.25)', text:'#C8952A'},
+  needs_clarification:      {bg:'rgba(200,60,60,0.1)',   border:'rgba(200,60,60,0.35)',  text:'#A32D2D'},
+  in_review:                {bg:'rgba(200,149,42,0.12)', border:'rgba(200,149,42,0.35)', text:'#9A6A00'},
+  quoted:                   {bg:'rgba(10,92,70,0.08)',   border:'rgba(10,92,70,0.2)',    text:'#0A5C46'},
+  quote_rejected:           {bg:'rgba(163,45,45,0.14)', border:'rgba(163,45,45,0.45)',  text:'#8B1A1A'},
+  deposit_required:         {bg:'rgba(200,149,42,0.12)',border:'rgba(200,149,42,0.4)',   text:'#7A5200'},
+  deposit_paid:             {bg:'rgba(26,146,114,0.1)',  border:'rgba(26,146,114,0.3)', text:'#0F6E56'},
+  in_development:           {bg:'rgba(14,110,86,0.1)',   border:'rgba(14,110,86,0.25)', text:'#0A5C46'},
+  complete_pending_payment: {bg:'rgba(200,149,42,0.1)',  border:'rgba(200,149,42,0.3)', text:'#7A5200'},
+  fully_paid:               {bg:'rgba(26,146,114,0.12)', border:'rgba(26,146,114,0.35)',text:'#0A5240'},
+  rejected:                 {bg:'rgba(163,45,45,0.14)', border:'rgba(163,45,45,0.45)',  text:'#8B1A1A'},
 }
-
 function statusLabel(s:string) {
-  const map:Record<string,string> = { needs_clarification:'Needs Clarification', quote_rejected:'Quote Rejected' }
+  const map:Record<string,string> = {
+    needs_clarification:'Needs Clarification', quote_rejected:'Quote Rejected',
+    deposit_required:'Deposit Required', deposit_paid:'Deposit Paid',
+    in_development:'In Development', complete_pending_payment:'Balance Due',
+    fully_paid:'Complete ✓',
+  }
   return map[s] ?? STATUS_PIPELINE.find(p=>p.key===s)?.label ?? s.replace(/_/g,' ')
 }
 function priorityMeta(p:string) { return PRIORITIES.find(x=>x.value===p)??PRIORITIES[0] }
@@ -62,9 +71,9 @@ function parseAnswers(raw:string|null): QAPair[]|string|null {
   return raw
 }
 
-interface Props { userRole:string; tenantId:string }
+interface Props { userRole:string; tenantId:string; bcConnected?:boolean }
 
-export default function RequirementsBuilder({ userRole, tenantId }:Props) {
+export default function RequirementsBuilder({ userRole, tenantId, bcConnected=false }:Props) {
   const isSuperadmin = userRole === 'superadmin'
   const [reqs, setReqs]             = useState<Requirement[]>([])
   const [loading, setLoading]       = useState(true)
@@ -220,6 +229,10 @@ export default function RequirementsBuilder({ userRole, tenantId }:Props) {
             {STATUS_PIPELINE.map(s=><option key={s.key} value={s.key}>{s.label}</option>)}
             <option value="needs_clarification">Needs Clarification</option>
             <option value="quote_rejected">Quote Rejected</option>
+            <option value="deposit_required">Deposit Required</option>
+            <option value="deposit_paid">Deposit Paid</option>
+            <option value="complete_pending_payment">Balance Due</option>
+            <option value="fully_paid">Complete</option>
             <option value="rejected">Rejected</option>
           </select>
           <select value={filterArea} onChange={e=>setFA(e.target.value)} style={selSt}>
@@ -228,12 +241,17 @@ export default function RequirementsBuilder({ userRole, tenantId }:Props) {
           </select>
         </div>
         <div style={{padding:'7px 14px',borderBottom:'1px solid var(--fog)',display:'flex',gap:12,background:'var(--cream)',alignItems:'center',flexWrap:'wrap'}}>
-          {[['Total',reqs.length],['Active',reqs.filter(r=>['submitted','needs_clarification','in_review','quoted','approved','in_development','quote_rejected'].includes(r.status)).length],['Done',reqs.filter(r=>r.status==='complete').length]].map(([l,c])=>(
+          {[['Total',reqs.length],['Active',reqs.filter(r=>['submitted','needs_clarification','in_review','quoted','quote_rejected','deposit_required','deposit_paid','in_development','complete_pending_payment'].includes(r.status)).length],['Done',reqs.filter(r=>r.status==='fully_paid').length]].map(([l,c])=>(
             <div key={String(l)} style={{display:'flex',alignItems:'baseline',gap:4}}>
               <span style={{fontFamily:'var(--font-mono)',fontSize:14,fontWeight:500,color:'var(--ink)'}}>{c}</span>
               <span style={{fontFamily:'var(--font-mono)',fontSize:8,letterSpacing:'0.12em',textTransform:'uppercase',color:'var(--slate)'}}>{l}</span>
             </div>
           ))}
+          {!bcConnected&&!isSuperadmin&&(
+            <span style={{marginLeft:'auto',fontFamily:'var(--font-mono)',fontSize:7,letterSpacing:'0.08em',textTransform:'uppercase',color:'var(--slate)',background:'rgba(59,82,73,0.05)',border:'1px solid var(--fog)',padding:'2px 8px',borderRadius:20,cursor:'default'}} title="Connect your BC instance in Settings for AI-assisted planning">
+              🔌 BC not connected
+            </span>
+          )}
           {(needsClarifCount>0||quoteRejCount>0)&&!isSuperadmin&&(
             <span style={{marginLeft:'auto',fontFamily:'var(--font-mono)',fontSize:8,letterSpacing:'0.1em',textTransform:'uppercase',color:'#A32D2D',background:'rgba(163,45,45,0.07)',border:'1px solid rgba(163,45,45,0.2)',padding:'2px 8px',borderRadius:20}}>
               ⚠ {needsClarifCount+quoteRejCount} need your response
@@ -253,7 +271,7 @@ export default function RequirementsBuilder({ userRole, tenantId }:Props) {
             const prio=priorityMeta(req.priority)
             const sc=STATUS_COLOR[req.status]??STATUS_COLOR.draft
             const spec=parseSpec(req)
-            const needsAction=['needs_clarification','quote_rejected'].includes(req.status)&&!isSuperadmin
+            const needsAction=['needs_clarification','quote_rejected','deposit_required','complete_pending_payment'].includes(req.status)&&!isSuperadmin
             const isAct=selected?.id===req.id
             return (
               <div key={req.id} onClick={()=>selectReq(req)} style={{background:needsAction?'rgba(163,45,45,0.03)':isAct?'rgba(10,92,70,0.05)':'var(--white)',border:`1px solid ${needsAction?'rgba(163,45,45,0.2)':isAct?'rgba(10,92,70,0.22)':'var(--fog)'}`,borderRadius:9,padding:'11px 13px',marginBottom:7,cursor:'pointer',transition:'border-color 0.15s'}}>
@@ -425,7 +443,7 @@ export default function RequirementsBuilder({ userRole, tenantId }:Props) {
               )}
 
               {/* Pipeline */}
-              {!['needs_clarification','rejected','quote_rejected'].includes(req.status)&&(
+              {!['needs_clarification','rejected','quote_rejected'].includes(req.status)&&req.status!=='fully_paid'&&(
                 <div style={crd}>
                   <label style={lbl}>Progress</label>
                   <div style={{display:'flex',alignItems:'center',marginTop:6}}>
@@ -590,6 +608,17 @@ export default function RequirementsBuilder({ userRole, tenantId }:Props) {
                 </div>
               )}
 
+              {/* Payment Terms Notice — shown when a quote is present and not yet accepted */}
+              {req.quote && req.status === 'quoted' && !isSuperadmin && (
+                <div style={{background:'rgba(200,149,42,0.06)',border:'1px solid rgba(200,149,42,0.2)',borderRadius:10,padding:'14px 16px'}}>
+                  <p style={{fontFamily:'var(--font-mono)',fontSize:8,letterSpacing:'0.12em',textTransform:'uppercase',color:'#9A6A00',marginBottom:8}}>📋 Payment Terms</p>
+                  <p style={{fontFamily:'var(--font-body)',fontSize:12,color:'var(--ink)',lineHeight:1.7}}>
+                    Accepting this quote requires a <strong>20% deposit</strong> ({req.quote ? `$${(parseFloat(req.quote)*0.2).toLocaleString('en-NZ',{minimumFractionDigits:2,maximumFractionDigits:2})} NZD` : ''}) payable before development begins.
+                    The remaining <strong>80% balance</strong> is due on completion, prior to delivery of the customisation.
+                  </p>
+                </div>
+              )}
+
               {/* Quote */}
               {req.quote&&(
                 <div style={{...crd,background:req.quoteApprovedAt?'rgba(10,92,70,0.04)':'var(--white)',borderColor:req.quoteApprovedAt?'rgba(10,92,70,0.2)':'var(--fog)'}}>
@@ -599,7 +628,42 @@ export default function RequirementsBuilder({ userRole, tenantId }:Props) {
                     <span style={{fontFamily:'var(--font-mono)',fontSize:10,color:'var(--slate)'}}>NZD excl. GST</span>
                   </div>
                   {req.consultantNote&&<p style={{fontFamily:'var(--font-body)',fontSize:12,color:'var(--slate)',lineHeight:1.65,fontStyle:'italic',marginTop:10}}>{req.consultantNote}</p>}
-                  {req.quoteApprovedAt&&<p style={{fontFamily:'var(--font-mono)',fontSize:9,color:'var(--jade)',marginTop:8,letterSpacing:'0.08em'}}>✓ Approved {new Date(req.quoteApprovedAt).toLocaleDateString('en-NZ',{dateStyle:'medium'})}</p>}
+                  {req.quoteApprovedAt&&<p style={{fontFamily:'var(--font-mono)',fontSize:9,color:'var(--jade)',marginTop:8,letterSpacing:'0.08em'}}>✓ Accepted {new Date(req.quoteApprovedAt).toLocaleDateString('en-NZ',{dateStyle:'medium'})}</p>}
+                  {req.depositAmount&&(
+                    <div style={{marginTop:12,paddingTop:12,borderTop:'1px solid var(--fog)',display:'flex',gap:20,flexWrap:'wrap'}}>
+                      <div>
+                        <div style={{fontFamily:'var(--font-mono)',fontSize:8,letterSpacing:'0.1em',textTransform:'uppercase',color:'var(--slate)',marginBottom:3}}>20% Deposit</div>
+                        <div style={{display:'flex',alignItems:'center',gap:8}}>
+                          <span style={{fontFamily:'var(--font-mono)',fontSize:13,fontWeight:600,color:'var(--ink)'}}>${parseFloat(req.depositAmount).toLocaleString('en-NZ',{minimumFractionDigits:2})}</span>
+                          {req.depositPaidAt
+                            ? <span style={{fontFamily:'var(--font-mono)',fontSize:8,color:'var(--jade)',background:'rgba(26,146,114,0.1)',border:'1px solid rgba(26,146,114,0.25)',borderRadius:4,padding:'1px 6px'}}>✓ PAID {new Date(req.depositPaidAt).toLocaleDateString('en-NZ',{dateStyle:'short'})}</span>
+                            : <span style={{fontFamily:'var(--font-mono)',fontSize:8,color:'#9A6A00',background:'rgba(200,149,42,0.1)',border:'1px solid rgba(200,149,42,0.25)',borderRadius:4,padding:'1px 6px'}}>DUE</span>
+                          }
+                        </div>
+                      </div>
+                      <div>
+                        <div style={{fontFamily:'var(--font-mono)',fontSize:8,letterSpacing:'0.1em',textTransform:'uppercase',color:'var(--slate)',marginBottom:3}}>80% Balance on Completion</div>
+                        <div style={{display:'flex',alignItems:'center',gap:8}}>
+                          <span style={{fontFamily:'var(--font-mono)',fontSize:13,fontWeight:600,color:'var(--ink)'}}>${(parseFloat(req.quote)-parseFloat(req.depositAmount)).toLocaleString('en-NZ',{minimumFractionDigits:2})}</span>
+                          {req.balancePaidAt
+                            ? <span style={{fontFamily:'var(--font-mono)',fontSize:8,color:'var(--jade)',background:'rgba(26,146,114,0.1)',border:'1px solid rgba(26,146,114,0.25)',borderRadius:4,padding:'1px 6px'}}>✓ PAID {new Date(req.balancePaidAt).toLocaleDateString('en-NZ',{dateStyle:'short'})}</span>
+                            : <span style={{fontFamily:'var(--font-mono)',fontSize:8,color:'var(--slate)',background:'rgba(59,82,73,0.06)',border:'1px solid var(--fog)',borderRadius:4,padding:'1px 6px'}}>{req.depositPaidAt?'DUE ON COMPLETION':'PENDING'}</span>
+                          }
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Fully paid banner */}
+              {req.status==='fully_paid'&&(
+                <div style={{background:'rgba(26,146,114,0.08)',border:'1px solid rgba(26,146,114,0.25)',borderRadius:10,padding:'14px 16px',display:'flex',alignItems:'center',gap:10}}>
+                  <span style={{fontSize:20}}>🎉</span>
+                  <div>
+                    <p style={{fontFamily:'var(--font-mono)',fontSize:9,letterSpacing:'0.12em',textTransform:'uppercase',color:'#0F6E56',marginBottom:3}}>Fully paid — complete</p>
+                    <p style={{fontFamily:'var(--font-body)',fontSize:12,color:'var(--slate)',lineHeight:1.5}}>Your customisation is complete and fully paid. BespoxAI will arrange delivery with your team.</p>
+                  </div>
                 </div>
               )}
 
@@ -610,7 +674,7 @@ export default function RequirementsBuilder({ userRole, tenantId }:Props) {
                   <button onClick={()=>deleteReq(req.id)} style={{...sBTN,color:'#A32D2D'}}>Delete Draft</button>
                 </>}
                 {!isSuperadmin&&req.status==='quoted'&&<>
-                  <button onClick={()=>patch(req.id,{status:'approved'})} disabled={actLoading} style={{...pBTN,background:'#085040'}}>✓ Approve Quote</button>
+                  <button onClick={()=>patch(req.id,{status:'deposit_required'})} disabled={actLoading} style={{...pBTN,background:'#085040'}}>✓ Accept Quote & Proceed</button>
                   <button onClick={()=>{setShowRQ(true)}} style={{background:'rgba(163,45,45,0.08)',border:'1px solid rgba(163,45,45,0.2)',color:'#A32D2D',borderRadius:8,padding:'9px 16px',cursor:'pointer',fontFamily:'var(--font-body)',fontSize:13}}>
                     ✕ Reject Quote
                   </button>
@@ -626,41 +690,41 @@ export default function RequirementsBuilder({ userRole, tenantId }:Props) {
                 {isSuperadmin&&req.status==='quote_rejected'&&(
                   <button onClick={()=>{setShowQF(true);setShowSB(false)}} disabled={actLoading} style={pBTN}>$ Revise Quote</button>
                 )}
-                {isSuperadmin&&req.status==='approved'&&(
+                {isSuperadmin&&req.status==='deposit_required'&&(
+                  <button onClick={()=>patch(req.id,{status:'deposit_paid'})} disabled={actLoading} style={{...pBTN,background:'#0F6E56'}}>✓ Confirm Deposit Received</button>
+                )}
+                {isSuperadmin&&req.status==='deposit_paid'&&(
                   <button onClick={()=>patch(req.id,{status:'in_development'})} disabled={actLoading} style={pBTN}>→ Start Development</button>
                 )}
                 {isSuperadmin&&req.status==='in_development'&&(
-                  <button onClick={()=>patch(req.id,{status:'complete'})} disabled={actLoading} style={{...pBTN,background:'#085040'}}>✓ Mark Complete</button>
+                  <button onClick={()=>patch(req.id,{status:'complete_pending_payment'})} disabled={actLoading} style={{...pBTN,background:'#0F6E56'}}>✓ Mark Complete — Request Balance</button>
+                )}
+                {isSuperadmin&&req.status==='complete_pending_payment'&&(
+                  <button onClick={()=>patch(req.id,{status:'fully_paid'})} disabled={actLoading} style={{...pBTN,background:'#085040'}}>✓ Confirm Balance Received</button>
                 )}
                 {isSuperadmin&&req.status==='needs_clarification'&&(
                   <p style={{fontFamily:'var(--font-mono)',fontSize:10,color:'var(--slate)',alignSelf:'center'}}>Waiting for customer response…</p>
                 )}
-                {isSuperadmin&&!['complete','rejected'].includes(req.status)&&(
+                {isSuperadmin&&!['fully_paid','rejected'].includes(req.status)&&(
                   <button onClick={()=>patch(req.id,{status:'rejected'})} disabled={actLoading} style={{...sBTN,color:'#A32D2D'}}>✕ Reject</button>
                 )}
               </div>
 
-              {/* Quote rejection modal (customer) */}
-              {showRejectQuote&&!isSuperadmin&&(
-                <div style={{...crd,borderColor:'rgba(163,45,45,0.25)',background:'rgba(163,45,45,0.03)'}}>
-                  <label style={{...lbl,color:'#A32D2D'}}>Reason for rejecting this quote</label>
-                  <p style={{fontFamily:'var(--font-body)',fontSize:11,color:'var(--slate)',marginBottom:10,lineHeight:1.5}}>Your reason will be shared with BespoxAI and kept on record. You can resubmit for a revised quote after rejecting.</p>
-                  <textarea
-                    placeholder="e.g. The quote is above our budget for this project. We'd like to explore a reduced scope — perhaps just the basic approval flow without the email notifications."
-                    value={rejectReason}
-                    onChange={e=>setRejectReason(e.target.value)}
-                    rows={4}
-                    style={{...iSt,resize:'vertical',lineHeight:1.65,marginBottom:10}}
-                    onFocus={fo} onBlur={bl}
-                  />
-                  <div style={{display:'flex',gap:8}}>
-                    <button onClick={rejectQuote} disabled={!rejectReason.trim()||actLoading} style={{...pBTN,background:'#A32D2D',opacity:!rejectReason.trim()?0.6:1}}>
-                      Reject Quote
-                    </button>
-                    <button onClick={()=>{setShowRQ(false);setRejectReason('')}} style={sBTN}>Cancel</button>
+              {/* Balance due banner (customer) */}
+              {!isSuperadmin&&req.status==='complete_pending_payment'&&(
+                <div style={{background:'rgba(200,149,42,0.07)',border:'1px solid rgba(200,149,42,0.3)',borderRadius:10,padding:'16px 18px'}}>
+                  <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:8}}>
+                    <span style={{fontSize:16}}>💳</span>
+                    <span style={{fontFamily:'var(--font-mono)',fontSize:9,letterSpacing:'0.12em',textTransform:'uppercase',color:'#7A5200',fontWeight:600}}>Balance payment due</span>
                   </div>
+                  <p style={{fontFamily:'var(--font-body)',fontSize:13,color:'var(--ink)',lineHeight:1.65,marginBottom:6}}>
+                    Your customisation is complete. Please arrange payment of the remaining balance
+                    {req.depositAmount&&req.quote ? ` ($${(parseFloat(req.quote)-parseFloat(req.depositAmount)).toLocaleString('en-NZ',{minimumFractionDigits:2})} NZD)` : ''} to receive delivery.
+                  </p>
+                  <p style={{fontFamily:'var(--font-body)',fontSize:12,color:'var(--slate)',lineHeight:1.5}}>Contact BespoxAI to arrange payment — delivery will follow confirmation.</p>
                 </div>
               )}
+
 
               {/* Send back form */}
               {showSendBack&&isSuperadmin&&(

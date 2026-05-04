@@ -429,7 +429,7 @@ export default function DashboardPage() {
               {user?.name ?? user?.email}
             </div>
             <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'rgba(214,217,212,0.4)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
-              {user?.role ?? 'User'}
+              {user?.role === 'superadmin' ? 'Super Admin' : user?.role === 'tenant_admin' ? 'Admin' : 'User'}
             </div>
           </div>
           <button

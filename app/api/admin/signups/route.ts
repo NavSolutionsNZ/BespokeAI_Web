@@ -23,10 +23,21 @@ export async function GET(req: NextRequest) {
 
   // Fallback: raw SQL tolerates any casing of the table name
   try {
-    // Try quoted exact name first
-    const signups = await prisma.$queryRawUnsafe<any[]>(
+    const rows = await prisma.$queryRawUnsafe<any[]>(
       `SELECT * FROM "SignupRequest" ORDER BY "createdAt" DESC`
     )
+    // Normalize: manually-created tables may use snake_case columns
+    const signups = rows.map(r => ({
+      id:          r.id,
+      companyName: r.companyName  ?? r.company_name,
+      country:     r.country,
+      bcVersion:   r.bcVersion    ?? r.bc_version,
+      email:       r.email,
+      verifyToken: r.verifyToken  ?? r.verify_token,
+      verifiedAt:  r.verifiedAt   ?? r.verified_at   ?? null,
+      activatedAt: r.activatedAt  ?? r.activated_at  ?? null,
+      createdAt:   r.createdAt    ?? r.created_at,
+    }))
     console.log(`[signups] raw SQL returned ${signups.length} records`)
     return NextResponse.json({ signups })
   } catch (rawErr: any) {

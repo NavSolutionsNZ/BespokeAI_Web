@@ -41,6 +41,16 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     await prisma.user.update({ where: { id: params.id }, data: { active: true } })
     return NextResponse.json({ ok: true })
   }
+  if (action === 'promote') {
+    // Elevate user → tenant_admin (only tenant_admin or superadmin can do this)
+    await prisma.user.update({ where: { id: params.id }, data: { role: 'tenant_admin' } })
+    return NextResponse.json({ ok: true, role: 'tenant_admin' })
+  }
+  if (action === 'demote') {
+    // Demote tenant_admin → user
+    await prisma.user.update({ where: { id: params.id }, data: { role: 'user' } })
+    return NextResponse.json({ ok: true, role: 'user' })
+  }
   if (action === 'reset') {
     const tempPassword = generateTempPassword()
     const hashed = await bcrypt.hash(tempPassword, 12)

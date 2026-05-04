@@ -45,7 +45,8 @@ function RoleBadge({ role }: { role: string }) {
     user:         ['rgba(59,82,73,0.08)',   'var(--slate)',  'rgba(59,82,73,0.2)'  ],
   }
   const [bg, color, border] = m[role] ?? m.user
-  return <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', padding: '2px 8px', borderRadius: 6, background: bg, color, border: `1px solid ${border}` }}>{role.replace('_', ' ')}</span>
+  const label = role === 'superadmin' ? 'Super Admin' : role === 'tenant_admin' ? 'Admin' : 'User'
+  return <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', padding: '2px 8px', borderRadius: 6, background: bg, color, border: `1px solid ${border}` }}>{label}</span>
 }
 
 export default function SettingsPage() {
@@ -112,11 +113,21 @@ export default function SettingsPage() {
     else toast$(d.error ?? 'Failed', false)
   }
 
-  async function userAction(id: string, action: 'disable' | 'enable' | 'reset') {
+  async function userAction(id: string, action: 'disable' | 'enable' | 'reset' | 'promote' | 'demote') {
     const r = await fetch(`/api/settings/users/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action }) })
     const d = await r.json()
-    if (r.ok) { if (action === 'reset') setResetResult({ id, tempPassword: d.tempPassword }); setUsers(p => p.map(u => u.id !== id ? u : { ...u, active: action === 'enable' ? true : action === 'disable' ? false : u.active })); toast$(action === 'reset' ? 'Password reset' : `User ${action}d`) }
-    else toast$(d.error ?? 'Failed', false)
+    if (r.ok) {
+      if (action === 'reset') setResetResult({ id, tempPassword: d.tempPassword })
+      setUsers(p => p.map(u => {
+        if (u.id !== id) return u
+        return {
+          ...u,
+          active: action === 'enable' ? true : action === 'disable' ? false : u.active,
+          role:   action === 'promote' ? 'tenant_admin' : action === 'demote' ? 'user' : u.role,
+        }
+      }))
+      toast$(action === 'reset' ? 'Password reset' : action === 'promote' ? 'Promoted to Admin' : action === 'demote' ? 'Demoted to User' : `User ${action}d`)
+    } else toast$(d.error ?? 'Failed', false)
   }
 
   async function deleteUser(id: string) {
@@ -313,6 +324,11 @@ export default function SettingsPage() {
                       <td style={{ padding: '11px 16px' }}>
                         {u.id !== selfId && <div style={{ display: 'flex', gap: 6 }}>
                           <button onClick={() => userAction(u.id, u.active ? 'disable' : 'enable')} style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: u.active ? '#A32D2D' : 'var(--jade)', background: 'none', border: `1px solid ${u.active ? 'rgba(163,45,45,0.3)' : 'rgba(26,146,114,0.3)'}`, borderRadius: 6, padding: '3px 9px', cursor: 'pointer' }}>{u.active ? 'Disable' : 'Enable'}</button>
+                          {u.role === 'user'
+                            ? <button onClick={() => userAction(u.id, 'promote')} style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'var(--forest)', background: 'none', border: '1px solid rgba(10,92,70,0.3)', borderRadius: 6, padding: '3px 9px', cursor: 'pointer' }}>→ Admin</button>
+                            : u.role === 'tenant_admin'
+                            ? <button onClick={() => userAction(u.id, 'demote')} style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'var(--slate)', background: 'none', border: '1px solid var(--fog)', borderRadius: 6, padding: '3px 9px', cursor: 'pointer' }}>→ User</button>
+                            : null}
                           <button onClick={() => userAction(u.id, 'reset')} style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'var(--slate)', background: 'none', border: '1px solid var(--fog)', borderRadius: 6, padding: '3px 9px', cursor: 'pointer' }}>Reset pw</button>
                           <button onClick={() => deleteUser(u.id)} style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: '#A32D2D', background: 'none', border: 'none', padding: '3px 4px', cursor: 'pointer' }}>✕</button>
                         </div>}

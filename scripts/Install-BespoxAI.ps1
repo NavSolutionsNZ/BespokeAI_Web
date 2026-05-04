@@ -121,6 +121,20 @@ Write-Host ''
 
 Write-Step 'Checking prerequisites'
 
+# Port conflict check
+if (Test-Port -Port $AgentPort) {
+    Write-Host ''
+    Write-Host "    ⚠ Port $AgentPort is already in use on this machine." -ForegroundColor Yellow
+    Write-Host '      Another BCAgent or service may be running.' -ForegroundColor Yellow
+    Write-Host "      Use -AgentPort to specify a different port (e.g. -AgentPort 8081)" -ForegroundColor Yellow
+    Write-Host ''
+    $confirm = Read-Host '    Continue anyway? (y/N)'
+    if ($confirm -notmatch '^[Yy]') {
+        Write-Host '    Installation cancelled.' -ForegroundColor Red
+        exit 1
+    }
+}
+
 # Admin check (belt-and-suspenders beyond #Requires)
 $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]'Administrator')
 if (-not $isAdmin) { Write-Fail 'Must be run as Administrator' }

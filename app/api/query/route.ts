@@ -121,12 +121,12 @@ OData rules:
       const errText = await bcRes.text()
       return NextResponse.json(
         {
-          error: `BC returned ${bcRes.status}`,
+          error: `BC OData returned ${bcRes.status}`,
           detail: errText,
           odataUrl,
           plan,
         },
-        { status: 502 },
+        { status: 400 },
       )
     }
 

@@ -85,7 +85,19 @@ OData rules:
 - Boolean: Open eq true
 - $orderby for sorting: fieldName desc
 - Combine with 'and' / 'or'
-- OData field names use underscores (e.g. Sell_to_Customer_No, not SellToCustomerNo)`,
+- OData field names use underscores (e.g. Sell_to_Customer_No, not SellToCustomerNo)
+
+CRITICAL — BC 14 does NOT support these — never use them:
+- $apply (no aggregation, no groupby, no aggregate())
+- $compute, $search
+- Lambda operators: any(), all()
+- Functions inside $filter: year(), month(), day()
+
+For time-series / "by month" / "over last N months" / trend questions:
+- Do NOT attempt OData aggregation — BC 14 will return 400
+- Instead: filter by date range, $select only the date + amount fields, use $top=500
+- Example for "invoice totals last 6 months": $top=500&$filter=Posting_Date ge 2024-06-01 and Posting_Date le 2024-11-30&$select=No,Posting_Date,Amount_Including_VAT&$orderby=Posting_Date asc
+- The answerer step will group and total the raw records by month`,
         },
         { role: 'user', content: question },
       ],

@@ -26,6 +26,7 @@ export async function GET() {
       email:     true,
       name:      true,
       role:      true,
+      active:    true,
       tenantId:  true,
       createdAt: true,
       tenant:    { select: { name: true, active: true } },

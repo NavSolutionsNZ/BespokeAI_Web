@@ -63,6 +63,12 @@ export default function AdminPage() {
   const [discoveryResult, setDiscoveryResult]     = useState<any>(null)
   const [togglingEntity, setTogglingEntity]       = useState('')
 
+  // Installer download form
+  const [installerTenantId, setInstallerTenantId] = useState<string | null>(null)
+  const [installerForm, setInstallerForm]         = useState({ bcUsername: '', bcPassword: '', bcPort: '8048', agentPort: '8080' })
+  const [installerLoading, setInstallerLoading]   = useState(false)
+  const [installerError, setInstallerError]       = useState('')
+
   useEffect(() => {
     if (user && user.role !== 'admin') router.push('/dashboard')
   }, [user, router])
@@ -87,6 +93,38 @@ export default function AdminPage() {
       body: JSON.stringify({ active: !active }),
     })
     setTenants(prev => prev.map(t => t.id === id ? { ...t, active: !active } : t))
+  }
+
+  async function downloadInstaller(tenantId: string) {
+    setInstallerLoading(true); setInstallerError('')
+    try {
+      const res = await fetch(`/api/admin/installer/${tenantId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          bcUsername: installerForm.bcUsername,
+          bcPassword: installerForm.bcPassword,
+          bcPort:     parseInt(installerForm.bcPort) || 8048,
+          agentPort:  parseInt(installerForm.agentPort) || 8080,
+        }),
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        setInstallerError(err.error ?? 'Failed to generate installer')
+        setInstallerLoading(false)
+        return
+      }
+      const blob = await res.blob()
+      const url  = URL.createObjectURL(blob)
+      const a    = document.createElement('a')
+      const cd   = res.headers.get('Content-Disposition') ?? ''
+      const name = cd.match(/filename="([^"]+)"/)?.[1] ?? 'Install-BespoxAI.bat'
+      a.href = url; a.download = name; a.click()
+      URL.revokeObjectURL(url)
+      setInstallerTenantId(null)
+      setInstallerForm({ bcUsername: '', bcPassword: '', bcPort: '8048', agentPort: '8080' })
+    } catch (e: any) { setInstallerError(e.message) }
+    setInstallerLoading(false)
   }
 
   async function discoverEntities(tenantId: string) {
@@ -261,12 +299,12 @@ export default function AdminPage() {
               </div>
               <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
                 {newTenantResult.provisioned ? (
-                  <a
-                    href={`/api/admin/installer/${newTenantResult.tenantId}`}
-                    style={{ ...btnStyle, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                  <button
+                    onClick={() => { setInstallerTenantId(newTenantResult!.tenantId!); setInstallerError('') }}
+                    style={btnStyle}
                   >
-                    ↓ Download Installer (.ps1)
-                  </a>
+                    ↓ Download Installer (.bat)
+                  </button>
                 ) : (
                   <>
                     <code style={{ flex: 1, background: 'var(--parchment)', padding: '8px 12px', borderRadius: 6, fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--ink)', wordBreak: 'break-all' }}>{newTenantResult.apiKey}</code>
@@ -392,7 +430,7 @@ export default function AdminPage() {
                         <td style={tdStyle}>
                           <div style={{ display: 'flex', gap: 8 }}>
                           {(t as any).tunnelId && (
-                            <a href={`/api/admin/installer/${t.id}`} style={{ ...ghostBtn, color: 'var(--forest)', textDecoration: 'none', display: 'inline-block' }}>↓ Installer</a>
+                            <button onClick={() => { setInstallerTenantId(t.id); setInstallerError('') }} style={{ ...ghostBtn, color: 'var(--forest)' }}>↓ Installer</button>
                           )}
                           <button onClick={() => toggleTenant(t.id, t.active)} style={{ ...ghostBtn, color: t.active ? '#A32D2D' : 'var(--forest)' }}>
                             {t.active ? 'Deactivate' : 'Activate'}
@@ -571,6 +609,65 @@ export default function AdminPage() {
           )}
 
         </div>
+      </div>
+      {/* Installer download modal */}
+      {installerTenantId && (
+        <InstallerModal
+          tenantName={tenants.find(t => t.id === installerTenantId)?.name ?? newTenantResult?.name ?? ''}
+          loading={installerLoading}
+          error={installerError}
+          form={installerForm}
+          onChange={setInstallerForm}
+          onDownload={() => downloadInstaller(installerTenantId)}
+          onClose={() => setInstallerTenantId(null)}
+        />
+      )}
+    </div>
+  )
+}
+
+// ─── Installer modal ──────────────────────────────────────────────────────────
+
+function InstallerModal({ tenantName, loading, error, form, onChange, onDownload, onClose }: {
+  tenantName: string; loading: boolean; error: string
+  form: { bcUsername: string; bcPassword: string; bcPort: string; agentPort: string }
+  onChange: (f: any) => void; onDownload: () => void; onClose: () => void
+}) {
+  const iStyle: React.CSSProperties = { width: '100%', background: 'var(--cream)', border: '1px solid var(--fog)', borderRadius: 8, padding: '9px 12px', fontSize: 13, fontFamily: 'var(--font-body)', color: 'var(--ink)', outline: 'none', boxSizing: 'border-box' }
+  const lStyle: React.CSSProperties = { fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--slate)', display: 'block', marginBottom: 6 }
+  const bStyle: React.CSSProperties = { background: 'var(--forest)', color: 'var(--white)', border: 'none', borderRadius: 8, padding: '8px 16px', cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500 }
+  const canDownload = !!form.bcUsername && !loading
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(4,14,9,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+      <div style={{ background: 'var(--white)', borderRadius: 16, padding: '28px 32px', width: 480, maxWidth: '90vw', boxShadow: '0 8px 40px rgba(4,14,9,0.2)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
+          <div>
+            <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 500, color: 'var(--ink)', margin: 0 }}>Generate installer</h2>
+            <p style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--slate)', marginTop: 4 }}>{tenantName}</p>
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--slate)', fontSize: 20, lineHeight: 1 }}>✕</button>
+        </div>
+        <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'var(--slate)', margin: '12px 0 20px', lineHeight: 1.6 }}>
+          Enter the customer's BC credentials. These will be pre-filled in the installer — send the .bat file securely.
+        </p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div><label style={lStyle}>BC Username (DOMAIN\user)</label><input style={iStyle} value={form.bcUsername} onChange={e => onChange({ ...form, bcUsername: e.target.value })} placeholder="CONTOSO\svc_bc" /></div>
+          <div><label style={lStyle}>BC Password</label><input style={iStyle} type="password" value={form.bcPassword} onChange={e => onChange({ ...form, bcPassword: e.target.value })} placeholder="Password" /></div>
+          <div style={{ display: 'flex', gap: 14 }}>
+            <div style={{ flex: 1 }}><label style={lStyle}>BC OData Port</label><input style={iStyle} value={form.bcPort} onChange={e => onChange({ ...form, bcPort: e.target.value })} /></div>
+            <div style={{ flex: 1 }}><label style={lStyle}>Agent Port</label><input style={iStyle} value={form.agentPort} onChange={e => onChange({ ...form, agentPort: e.target.value })} /></div>
+          </div>
+        </div>
+        {error && <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#A32D2D', marginTop: 12 }}>{error}</p>}
+        <div style={{ display: 'flex', gap: 10, marginTop: 24 }}>
+          <button onClick={onDownload} disabled={!canDownload} style={{ ...bStyle, opacity: canDownload ? 1 : 0.6, cursor: canDownload ? 'pointer' : 'not-allowed' }}>
+            {loading ? 'Generating…' : '↓ Download Installer (.bat)'}
+          </button>
+          <button onClick={onClose} style={{ ...bStyle, background: 'var(--fog)', color: 'var(--ink)' }}>Cancel</button>
+        </div>
+        <p style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--slate)', marginTop: 12, lineHeight: 1.6 }}>
+          The .bat auto-elevates to Administrator. IT double-clicks it — no PowerShell knowledge needed.
+        </p>
       </div>
     </div>
   )

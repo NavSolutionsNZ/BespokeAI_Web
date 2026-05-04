@@ -88,6 +88,39 @@ export async function POST(req: NextRequest) {
 
   const PERSONA = `You are an expert Microsoft Business Central v14 functional consultant and a senior CFO advisor specialising in ${countryName} accounting, tax, and financial reporting standards. You have deep knowledge of BC/NAV configuration, chart of accounts, GST/VAT, and local compliance requirements.`
 
+  // ── Pre-calculate date ranges so GPT never guesses "last quarter" etc. ──
+  const now = new Date()
+  const y = now.getFullYear()
+  const m = now.getMonth() // 0-indexed
+
+  const qStart = (q: number, yr: number) => new Date(yr, (q - 1) * 3, 1)
+  const qEnd   = (q: number, yr: number) => new Date(yr, q * 3, 0, 23, 59, 59)
+  const fmt    = (d: Date) => d.toISOString().slice(0, 10)
+
+  const currentQ  = Math.floor(m / 3) + 1
+  const lastQ     = currentQ === 1 ? 4 : currentQ - 1
+  const lastQYear = currentQ === 1 ? y - 1 : y
+  const prevQ     = lastQ === 1 ? 4 : lastQ - 1
+  const prevQYear = lastQ === 1 ? lastQYear - 1 : lastQYear
+
+  const DATE_CONTEXT = `
+TODAY: ${fmt(now)} (${now.toLocaleDateString('en-NZ', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })})
+
+Use ONLY these pre-calculated date ranges — never calculate your own:
+- This quarter (Q${currentQ} ${y}):        ${fmt(qStart(currentQ, y))} to ${fmt(qEnd(currentQ, y))}
+- Last quarter (Q${lastQ} ${lastQYear}):   ${fmt(qStart(lastQ, lastQYear))} to ${fmt(qEnd(lastQ, lastQYear))}
+- Previous quarter (Q${prevQ} ${prevQYear}): ${fmt(qStart(prevQ, prevQYear))} to ${fmt(qEnd(prevQ, prevQYear))}
+- This year (${y}):                        ${fmt(new Date(y, 0, 1))} to ${fmt(new Date(y, 11, 31))}
+- Last year (${y - 1}):                    ${fmt(new Date(y - 1, 0, 1))} to ${fmt(new Date(y - 1, 11, 31))}
+- Last 30 days:                            ${fmt(new Date(now.getTime() - 30 * 86400000))} to ${fmt(now)}
+- Last 90 days:                            ${fmt(new Date(now.getTime() - 90 * 86400000))} to ${fmt(now)}
+- Last 6 months:                           ${fmt(new Date(y, m - 6, 1))} to ${fmt(now)}
+- Last 12 months:                          ${fmt(new Date(y - 1, m, 1))} to ${fmt(now)}
+- This month (${now.toLocaleString('en-NZ', { month: 'long' })} ${y}): ${fmt(new Date(y, m, 1))} to ${fmt(new Date(y, m + 1, 0))}
+- Last month:                              ${fmt(new Date(y, m - 1, 1))} to ${fmt(new Date(y, m, 0))}
+
+CRITICAL: when filtering records by date, always use the EXACT date range above. Apply inclusive boundary comparisons: date >= start AND date <= end.`
+
   let queryMode: QueryMode = 'data'
   let genericAnswer: { answer: string; suggestedQueries: string[] } | null = null
 
@@ -167,6 +200,7 @@ needsData=false for: accounting concepts, BC how-to questions, ratio definitions
         {
           role: 'system',
           content: `You are a Microsoft Business Central OData query planner.
+${DATE_CONTEXT}
 Given a user's natural language question, output ONLY a JSON object with:
   - entity: exact BC OData entity name from the list below
   - params: OData query string (everything after the '?'), e.g. "$top=20&$filter=Balance_LCY gt 0&$orderby=Balance_LCY desc&$select=No,Name,Balance_LCY"
@@ -391,6 +425,7 @@ Return JSON:
           content: `${PERSONA}
 
 You are presenting live Business Central data to the CFO at ${tenant.name}.
+${DATE_CONTEXT}
 
 Your response MUST be a single valid JSON object with this exact shape:
 {

@@ -119,8 +119,12 @@ export default function AdminPage() {
       const a    = document.createElement('a')
       const cd   = res.headers.get('Content-Disposition') ?? ''
       const name = cd.match(/filename="([^"]+)"/)?.[1] ?? 'Install-BespoxAI.bat'
-      a.href = url; a.download = name; a.click()
-      URL.revokeObjectURL(url)
+      a.href = url
+      a.download = name
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      setTimeout(() => URL.revokeObjectURL(url), 30_000)
       setInstallerTenantId(null)
       setInstallerForm({ bcUsername: '', bcPassword: '', bcPort: '8048', agentPort: '8080' })
     } catch (e: any) { setInstallerError(e.message) }

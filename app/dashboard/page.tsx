@@ -8,6 +8,13 @@ import type { DisplayHint, StructuredData } from '@/app/api/query/route'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+interface HealthStatus {
+  status:     'checking' | 'ok' | 'error'
+  latencyMs:  number | null
+  checkedAt:  Date | null
+  error?:     string
+}
+
 interface QueryResult {
   id: string
   question: string
@@ -41,11 +48,43 @@ const NAV_ITEMS: { id: NavItem; icon: string; label: string; badge?: string; soo
   { id: 'migration', icon: '🏗️', label: 'Migration Analyser', soon: true },
 ]
 
+// ─── Health polling hook ──────────────────────────────────────────────────────
+
+const POLL_INTERVAL_MS = 60_000
+
+function useHealthStatus(): HealthStatus {
+  const [health, setHealth] = useState<HealthStatus>({ status: 'checking', latencyMs: null, checkedAt: null })
+
+  useEffect(() => {
+    async function check() {
+      try {
+        const res  = await fetch('/api/health')
+        const data = await res.json()
+        setHealth({
+          status:    data.ok ? 'ok' : 'error',
+          latencyMs: data.latencyMs ?? null,
+          checkedAt: new Date(data.checkedAt),
+          error:     data.error,
+        })
+      } catch {
+        setHealth(prev => ({ ...prev, status: 'error', checkedAt: new Date() }))
+      }
+    }
+
+    check()
+    const timer = setInterval(check, POLL_INTERVAL_MS)
+    return () => clearInterval(timer)
+  }, [])
+
+  return health
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
   const { data: session } = useSession()
   const user = session?.user as any
+  const health = useHealthStatus()
 
   const [activeNav, setActiveNav] = useState<NavItem>('assistant')
   const [question, setQuestion]   = useState('')
@@ -133,15 +172,25 @@ export default function DashboardPage() {
           {/* Connected company badge */}
           <div style={{
             display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 10,
-            background: 'rgba(10,92,70,0.25)', border: '1px solid rgba(10,92,70,0.4)',
+            background: health.status === 'ok'
+              ? 'rgba(10,92,70,0.25)'
+              : health.status === 'error'
+              ? 'rgba(163,45,45,0.2)'
+              : 'rgba(100,100,100,0.15)',
+            border: `1px solid ${health.status === 'ok' ? 'rgba(10,92,70,0.4)' : health.status === 'error' ? 'rgba(163,45,45,0.35)' : 'rgba(100,100,100,0.25)'}`,
             borderRadius: 12, padding: '4px 10px',
           }}>
-            <div style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--jade)' }} />
+            <div style={{
+              width: 5, height: 5, borderRadius: '50%',
+              background: health.status === 'ok' ? 'var(--jade)' : health.status === 'error' ? '#E24B4A' : 'rgba(214,217,212,0.4)',
+              animation: health.status === 'ok' ? 'pulse 2s infinite' : 'none',
+            }} />
             <span style={{
               fontFamily: 'var(--font-mono)', fontSize: 9,
-              letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--jade)',
+              letterSpacing: '0.12em', textTransform: 'uppercase',
+              color: health.status === 'ok' ? 'var(--jade)' : health.status === 'error' ? '#E24B4A' : 'rgba(214,217,212,0.4)',
             }}>
-              {tenantName} · Live
+              {tenantName} · {health.status === 'ok' ? 'Live' : health.status === 'error' ? 'Offline' : '···'}
             </span>
           </div>
         </div>
@@ -268,19 +317,35 @@ export default function DashboardPage() {
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            {/* Live badge */}
+            {/* Live / offline badge */}
             <div style={{
               display: 'flex', alignItems: 'center', gap: 6,
-              background: 'rgba(26,146,114,0.08)', border: '1px solid rgba(26,146,114,0.2)',
+              background: health.status === 'ok'
+                ? 'rgba(26,146,114,0.08)'
+                : health.status === 'error'
+                ? 'rgba(163,45,45,0.08)'
+                : 'rgba(100,100,100,0.06)',
+              border: `1px solid ${health.status === 'ok' ? 'rgba(26,146,114,0.2)' : health.status === 'error' ? 'rgba(163,45,45,0.2)' : 'rgba(100,100,100,0.15)'}`,
               borderRadius: 20, padding: '4px 12px',
             }}>
-              <div style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--jade)', animation: 'pulse 2s infinite' }} />
-              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--forest)' }}>
-                Live BC data
+              <div style={{
+                width: 5, height: 5, borderRadius: '50%',
+                background: health.status === 'ok' ? 'var(--jade)' : health.status === 'error' ? '#E24B4A' : 'rgba(150,150,150,0.5)',
+                animation: health.status === 'ok' ? 'pulse 2s infinite' : 'none',
+              }} />
+              <span style={{
+                fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.14em',
+                textTransform: 'uppercase',
+                color: health.status === 'ok' ? 'var(--forest)' : health.status === 'error' ? '#A32D2D' : 'var(--slate)',
+              }}>
+                {health.status === 'ok' ? 'BC connected' : health.status === 'error' ? 'Agent offline' : 'Checking…'}
               </span>
             </div>
+            {/* Last checked + latency */}
             <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--fog)' }}>
-              Last sync 2 min ago
+              {health.checkedAt
+                ? `Checked ${formatRelativeTime(health.checkedAt)}${health.latencyMs != null ? ` · ${health.latencyMs}ms` : ''}`
+                : 'Connecting…'}
             </span>
           </div>
         </header>
@@ -503,6 +568,18 @@ export default function DashboardPage() {
       `}</style>
     </div>
   )
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function formatRelativeTime(date: Date): string {
+  const diffMs  = Date.now() - date.getTime()
+  const diffSec = Math.floor(diffMs / 1000)
+  if (diffSec < 10)  return 'just now'
+  if (diffSec < 60)  return `${diffSec}s ago`
+  const diffMin = Math.floor(diffSec / 60)
+  if (diffMin < 60)  return `${diffMin}m ago`
+  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────

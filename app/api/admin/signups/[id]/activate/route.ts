@@ -20,6 +20,11 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   const body = await req.json().catch(() => ({}))
 
+  // Guard: check for existing user with this email
+  const existingUser = await prisma.user.findUnique({ where: { email: signup.email } })
+  if (existingUser)
+    return NextResponse.json({ error: 'A user with this email already exists' }, { status: 409 })
+
   // Use provided subdomain or derive from company name
   const subdomain = (body.subdomain ?? signup.companyName)
     .toLowerCase()

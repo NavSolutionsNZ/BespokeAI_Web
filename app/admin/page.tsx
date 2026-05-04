@@ -93,6 +93,18 @@ export default function AdminPage() {
     }).catch(() => setLoading(false))
   }, [])
 
+  useEffect(() => {
+    if (tab === 'signups' && !signupsLoaded) {
+      fetch('/api/admin/signups')
+        .then(r => r.json())
+        .then(data => {
+          setSignups(data.signups ?? [])
+          setSignupsLoaded(true)
+        })
+        .catch(() => setSignupsLoaded(true))
+    }
+  }, [tab, signupsLoaded])
+
   async function toggleTenant(id: string, active: boolean) {
     await fetch(`/api/admin/tenants/${id}`, {
       method: 'PATCH',
@@ -314,7 +326,7 @@ export default function AdminPage() {
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: 'var(--cream)' }}>
         <header style={{ padding: '0 32px', height: 60, flexShrink: 0, background: 'var(--white)', borderBottom: '1px solid var(--fog)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <h1 style={{ fontFamily: 'var(--font-display)', fontWeight: 500, fontSize: 20, color: 'var(--ink)' }}>
-            {tab === 'overview' ? 'Overview' : tab === 'tenants' ? 'Tenants' : tab === 'users' ? 'Users' : 'Entities'}
+            {tab === 'overview' ? 'Overview' : tab === 'tenants' ? 'Tenants' : tab === 'users' ? 'Users' : tab === 'signups' ? 'Signup Requests' : 'Entities'}
           </h1>
           <div style={{ display: 'flex', gap: 10 }}>
             {tab === 'tenants' && (
@@ -594,10 +606,18 @@ export default function AdminPage() {
               </div>
             </div>
           )}
-        {/* ── Entities tab ──────────────────────────────────────────────── */}
+        {/* ── Signups tab ───────────────────────────────────────────────── */}
           {tab === 'signups' && (
           <div>
-            <h3 style={{ fontFamily: 'var(--font-cormorant)', fontSize: 22, marginBottom: 20 }}>Signup Requests</h3>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+              <h3 style={{ fontFamily: 'var(--font-cormorant)', fontSize: 22, margin: 0 }}>Signup Requests</h3>
+              <button
+                onClick={() => { setSignupsLoaded(false) }}
+                style={{ background: 'transparent', border: '1px solid var(--fog)', borderRadius: 6, padding: '6px 14px', fontSize: 12, color: 'var(--slate)', cursor: 'pointer' }}
+              >
+                ↻ Refresh
+              </button>
+            </div>
             {signups.length === 0 ? (
               <p style={{ color: 'var(--slate)', fontSize: 14 }}>No signup requests yet.</p>
             ) : (

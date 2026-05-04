@@ -228,7 +228,7 @@ function BespoxBarChart({ data }: { data: StructuredData }) {
             axisLine={false} tickLine={false} width={60}
           />
           <Tooltip
-            formatter={(v: number) => [fmt(v), columns[1]]}
+            formatter={(v) => [fmt(v as number ?? 0), columns[1]]}
             labelStyle={{ color: '#D6D9D4', fontFamily: 'var(--font-mono)', fontSize: 10, marginBottom: 2 }}
             contentStyle={tooltipStyle}
             cursor={{ fill: 'rgba(26,146,114,0.06)' }}
@@ -284,7 +284,7 @@ function BespoxLineChart({ data }: { data: StructuredData }) {
             axisLine={false} tickLine={false} width={60}
           />
           <Tooltip
-            formatter={(v: number) => [fmt(v), columns[1]]}
+            formatter={(v) => [fmt(v as number ?? 0), columns[1]]}
             labelStyle={{ color: '#D6D9D4', fontFamily: 'var(--font-mono)', fontSize: 10, marginBottom: 2 }}
             contentStyle={tooltipStyle}
             cursor={{ stroke: JADE, strokeWidth: 1 }}

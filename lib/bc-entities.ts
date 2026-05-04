@@ -132,7 +132,23 @@ export const BC_ENTITIES = {
 
   // --- Finance ---
   GeneralLedgerEntry: {
-    description: 'Item ledger entries — inventory movements (vehicle/parts purchases and sales). Entry_Type is Purchase or Sale. Amount is cost value. Has Posting_Date. Use for stock movement, vehicle sales history, inventory cost queries. NOT a financial GL — no account numbers.',
+    description: 'Financial general ledger entries — debits, credits, account postings. Use for P&L, budget vs actual, cost centre analysis, VAT. Has G_L_Account_No, G_L_Account_Name, Debit_Amount, Credit_Amount. Posting_Date is a bare date — do not use $filter on it.',
+    keyField: 'Entry_No',
+    usefulFields: [
+      'Entry_No', 'Transaction_No', 'Posting_Date', 'Register_Date',
+      'Document_Type', 'Document_No', 'External_Document_No',
+      'G_L_Account_No', 'G_L_Account_Name', 'Description',
+      'Amount', 'Debit_Amount', 'Credit_Amount', 'VAT_Amount',
+      'Source_Type', 'Source_No',
+      'Global_Dimension_1_Code', 'Global_Dimension_2_Code', 'Branch_Code',
+      'Gen_Posting_Type', 'Gen_Bus_Posting_Group', 'Gen_Prod_Posting_Group',
+      'Reversed', 'Source_Code', 'Reason_Code',
+    ],
+  },
+
+  // --- Item Ledger ---
+  ItemLedgerEntry: {
+    description: 'Item ledger entries — physical inventory movements (vehicle/parts purchases and sales). Entry_Type is Purchase or Sale. Amount is cost value. Use for stock movement, vehicle sales history, inventory cost by item.',
     keyField: 'Entry_No',
     usefulFields: [
       'Entry_No', 'Posting_Date', 'Entry_Type', 'Document_No',

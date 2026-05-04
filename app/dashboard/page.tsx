@@ -24,6 +24,8 @@ interface QueryResult {
   data?: StructuredData | null
   meta?: { entity: string; reasoning: string; recordCount: number; odataUrl: string }
   error?: string
+  errorDetail?: string
+  errorUrl?: string
   ts: Date
   loading?: boolean
 }
@@ -128,6 +130,7 @@ export default function DashboardPage() {
         ...item, loading: false,
         answer: data.answer ?? '', displayHint: data.displayHint,
         data: data.data, meta: data.meta, error: data.error,
+        errorDetail: data.detail, errorUrl: data.odataUrl,
       }))
     } catch {
       setHistory(prev => prev.map(item => item.id !== id ? item : {
@@ -437,9 +440,26 @@ export default function DashboardPage() {
                       {item.loading ? (
                         <LoadingDots />
                       ) : item.error ? (
-                        <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#A32D2D', lineHeight: 1.6 }}>
-                          <strong>Error:</strong> {item.error}
-                        </p>
+                        <div>
+                          <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#A32D2D', lineHeight: 1.6, marginBottom: item.errorUrl ? 10 : 0 }}>
+                            <strong>Error:</strong> {item.error}
+                          </p>
+                          {item.errorUrl && (
+                            <details style={{ marginTop: 8 }}>
+                              <summary style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--slate)', cursor: 'pointer' }}>
+                                Debug info
+                              </summary>
+                              <code style={{ display: 'block', background: 'var(--parchment)', padding: '8px 12px', borderRadius: 6, fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--slate)', wordBreak: 'break-all', lineHeight: 1.6, marginTop: 6 }}>
+                                {item.errorUrl}
+                              </code>
+                              {item.errorDetail && (
+                                <code style={{ display: 'block', background: '#FEF2F2', padding: '8px 12px', borderRadius: 6, fontFamily: 'var(--font-mono)', fontSize: 10, color: '#A32D2D', wordBreak: 'break-all', lineHeight: 1.6, marginTop: 4 }}>
+                                  {item.errorDetail}
+                                </code>
+                              )}
+                            </details>
+                          )}
+                        </div>
                       ) : (
                         <>
                           {/* Data pulse decoration */}

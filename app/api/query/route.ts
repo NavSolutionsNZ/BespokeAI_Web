@@ -95,7 +95,7 @@ OData rules:
     plan = JSON.parse(clean)
   } catch (err: any) {
     return NextResponse.json(
-      { error: 'Query planner failed', detail: err.message },
+      { error: 'Query planner failed', detail: err.message, step: 'planner' },
       { status: 500 },
     )
   }
@@ -205,7 +205,7 @@ Numbers in rows must be raw numeric — no $ signs or commas.`,
     payload.data        = payload.data        ?? null
   } catch (err: any) {
     return NextResponse.json(
-      { error: `Answer generation failed: ${err.message}` },
+      { error: `Answer generation failed: ${err.message}`, step: 'answerer' },
       { status: 500 },
     )
   }

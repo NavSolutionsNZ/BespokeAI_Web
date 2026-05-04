@@ -273,7 +273,31 @@ For time-series / "by month" / "over last N months" / trend questions:
     )
   }
 
-  // ── Step 2: Fetch BC data via BCAgent tunnel ─────────────────────────────
+  // ── Force adequate $top — never trust GPT to pick the right number ────────
+  // Posted document entities cannot be date-filtered server-side (BC 14 returns 400).
+  // All date filtering happens in the answerer, so we must fetch enough records
+  // to cover any time period the user might ask about.
+  const ALWAYS_FETCH_ALL = new Set([
+    'SalesInvoice', 'PurchaseInvoice', 'SalesCrMemo', 'PurchaseCrMemo',
+    'GeneralLedgerEntry', 'SalesInvoiceSalesLines', 'PurchaseInvoicePurchLines',
+    'SalesOrder', 'PurchaseOrder', 'SalesShipment', 'SalesShipmentLine',
+  ])
+
+  const TIME_PERIOD_KEYWORDS = /\b(quarter|month|year|ytd|week|day|last|this|past|period|recent|trend|over|since|between|from|annual|quarterly|monthly|weekly|daily)\b/i
+
+  const forceLargeTop =
+    ALWAYS_FETCH_ALL.has(plan.entity) ||
+    TIME_PERIOD_KEYWORDS.test(question)
+
+  if (forceLargeTop) {
+    const setTop = (params: string, n: number) =>
+      /\$top=\d+/i.test(params)
+        ? params.replace(/\$top=\d+/i, `$top=${n}`)
+        : `$top=${n}&${params}`
+
+    plan.params       = setTop(plan.params ?? '', 1000)
+    if (plan.secondParams) plan.secondParams = setTop(plan.secondParams, 2000)
+  }
 
   const odataUrl = buildODataUrl(tenant, plan.entity, plan.params)
 

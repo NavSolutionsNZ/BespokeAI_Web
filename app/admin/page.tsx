@@ -1338,6 +1338,13 @@ function AdminRequirementsTab() {
                         {devPlanData.totalEstimatedHours}h · {devPlanData.tasks?.length ?? 0} tasks
                       </span>
                     )}
+                    {devPlanData && (
+                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 8, color: devPlanData._bcConnected ? 'var(--jade)' : 'rgba(214,217,212,0.3)', letterSpacing: '0.08em' }}>
+                        {devPlanData._bcConnected
+                          ? `🔌 BC live · ${devPlanData._introspectedTables?.join(', ')}`
+                          : '🔌 BC not connected'}
+                      </span>
+                    )}
                   </div>
                   <button
                     onClick={() => generateDevPlan(selected.id)}
@@ -1354,6 +1361,32 @@ function AdminRequirementsTab() {
                       <div>
                         <p style={{ fontFamily: 'var(--font-mono)', fontSize: 8, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(214,217,212,0.35)', marginBottom: 5 }}>Summary</p>
                         <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: 'rgba(214,217,212,0.8)', lineHeight: 1.65 }}>{devPlanData.summary}</p>
+                      </div>
+                    )}
+
+                    {/* Field audit — only shown if BC was connected */}
+                    {devPlanData._bcConnected && (devPlanData.existingFieldsFound?.length > 0 || devPlanData.missingFieldsAdded?.length > 0) && (
+                      <div style={{ display: 'flex', gap: 10 }}>
+                        {devPlanData.existingFieldsFound?.length > 0 && (
+                          <div style={{ flex: 1, background: 'rgba(26,146,114,0.08)', border: '1px solid rgba(26,146,114,0.2)', borderRadius: 6, padding: '10px 12px' }}>
+                            <p style={{ fontFamily: 'var(--font-mono)', fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--jade)', marginBottom: 6 }}>✓ Already in BC — no action</p>
+                            <ul style={{ margin: 0, paddingLeft: 14 }}>
+                              {devPlanData.existingFieldsFound.map((f: string, i: number) => (
+                                <li key={i} style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'rgba(214,217,212,0.55)', lineHeight: 1.6 }}>{f}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        {devPlanData.missingFieldsAdded?.length > 0 && (
+                          <div style={{ flex: 1, background: 'rgba(200,149,42,0.08)', border: '1px solid rgba(200,149,42,0.2)', borderRadius: 6, padding: '10px 12px' }}>
+                            <p style={{ fontFamily: 'var(--font-mono)', fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--amber)', marginBottom: 6 }}>⚠ Missing — being added</p>
+                            <ul style={{ margin: 0, paddingLeft: 14 }}>
+                              {devPlanData.missingFieldsAdded.map((f: string, i: number) => (
+                                <li key={i} style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'rgba(214,217,212,0.7)', lineHeight: 1.6 }}>{f}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
                       </div>
                     )}
                     {devPlanData.approach && (

@@ -28,7 +28,7 @@ interface Stats {
   tenants: any[]; topEntities: { entity: string; _count: { entity: number } }[]
 }
 
-type Tab = 'overview' | 'tenants' | 'users' | 'entities'
+type Tab = 'overview' | 'tenants' | 'users' | 'entities' | 'signups'
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -38,6 +38,9 @@ export default function AdminPage() {
   const user = session?.user as any
 
   const [tab, setTab]           = useState<Tab>('overview')
+  const [signups, setSignups]   = useState<any[]>([])
+  const [signupsLoaded, setSignupsLoaded] = useState(false)
+  const [activating, setActivating] = useState<string | null>(null)
   const [tenants, setTenants]   = useState<Tenant[]>([])
   const [users, setUsers]       = useState<User[]>([])
   const [stats, setStats]       = useState<Stats | null>(null)
@@ -262,7 +265,7 @@ export default function AdminPage() {
         </div>
 
         <nav style={{ flex: 1, padding: '12px 10px' }}>
-          {([['overview', 'Overview'], ['tenants', 'Tenants'], ['users', 'Users'], ['entities', 'Entities']] as [Tab, string][]).map(([id, label]) => (
+          {([['overview', 'Overview'], ['tenants', 'Tenants'], ['users', 'Users'], ['entities', 'Entities'], ['signups', 'Signups']] as [Tab, string][]).map(([id, label]) => (
             <button key={id} onClick={() => setTab(id)} style={{
               width: '100%', display: 'flex', alignItems: 'center', gap: 10,
               padding: '9px 10px', borderRadius: 8, marginBottom: 2, border: 'none',
@@ -592,7 +595,70 @@ export default function AdminPage() {
             </div>
           )}
         {/* ── Entities tab ──────────────────────────────────────────────── */}
-          {tab === 'entities' && (
+          {tab === 'signups' && (
+          <div>
+            <h3 style={{ fontFamily: 'var(--font-cormorant)', fontSize: 22, marginBottom: 20 }}>Signup Requests</h3>
+            {signups.length === 0 ? (
+              <p style={{ color: 'var(--slate)', fontSize: 14 }}>No signup requests yet.</p>
+            ) : (
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid var(--fog)' }}>
+                    {['Company', 'Email', 'Country', 'BC Version', 'Submitted', 'Verified', 'Status', ''].map(h => (
+                      <th key={h} style={{ textAlign: 'left', padding: '8px 12px', color: 'var(--slate)', fontWeight: 600, fontSize: 11, letterSpacing: '0.05em', textTransform: 'uppercase' }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {signups.map((s: any) => (
+                    <tr key={s.id} style={{ borderBottom: '1px solid var(--fog)' }}>
+                      <td style={{ padding: '10px 12px', fontWeight: 600 }}>{s.companyName}</td>
+                      <td style={{ padding: '10px 12px', color: 'var(--slate)' }}>{s.email}</td>
+                      <td style={{ padding: '10px 12px', color: 'var(--slate)' }}>{s.country}</td>
+                      <td style={{ padding: '10px 12px', color: 'var(--slate)' }}>{s.bcVersion}</td>
+                      <td style={{ padding: '10px 12px', color: 'var(--slate)' }}>{new Date(s.createdAt).toLocaleDateString('en-NZ')}</td>
+                      <td style={{ padding: '10px 12px' }}>
+                        {s.verifiedAt
+                          ? <span style={{ color: 'var(--forest)', fontWeight: 600 }}>✓ Verified</span>
+                          : <span style={{ color: 'var(--slate)' }}>Pending</span>}
+                      </td>
+                      <td style={{ padding: '10px 12px' }}>
+                        {s.activatedAt
+                          ? <span style={{ color: 'var(--forest)', fontSize: 12 }}>✅ Activated</span>
+                          : s.verifiedAt
+                            ? <span style={{ color: '#C8952A', fontSize: 12, fontWeight: 600 }}>Ready to activate</span>
+                            : <span style={{ color: 'var(--slate)', fontSize: 12 }}>Awaiting verification</span>}
+                      </td>
+                      <td style={{ padding: '10px 12px' }}>
+                        {s.verifiedAt && !s.activatedAt && (
+                          <button
+                            onClick={async () => {
+                              setActivating(s.id)
+                              const res = await fetch(`/api/admin/signups/${s.id}/activate`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) })
+                              const data = await res.json()
+                              if (res.ok) {
+                                setSignups(prev => prev.map(x => x.id === s.id ? { ...x, activatedAt: new Date().toISOString() } : x))
+                              } else {
+                                alert(data.error ?? 'Activation failed')
+                              }
+                              setActivating(null)
+                            }}
+                            disabled={activating === s.id}
+                            style={{ background: '#0A5C46', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+                          >
+                            {activating === s.id ? 'Activating…' : 'Activate →'}
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        )}
+
+        {tab === 'entities' && (
             <div style={{ maxWidth: 860 }}>
               {/* Tenant selector */}
               <div style={{ background: 'var(--white)', border: '1px solid var(--fog)', borderRadius: 12, padding: '20px 24px', marginBottom: 20 }}>

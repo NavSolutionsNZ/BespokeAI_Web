@@ -3,12 +3,23 @@ import { NextResponse } from 'next/server'
 
 export default withAuth(
   function middleware(req) {
-    const token = (req as any).nextauth?.token
-    const isAdminRoute = req.nextUrl.pathname.startsWith('/admin') ||
-                         req.nextUrl.pathname.startsWith('/api/admin')
-    if (isAdminRoute && token?.role !== 'admin') {
+    const token    = (req as any).nextauth?.token
+    const role     = token?.role as string | undefined
+    const pathname = req.nextUrl.pathname
+
+    const isAdminRoute    = pathname.startsWith('/admin')    || pathname.startsWith('/api/admin')
+    const isSettingsRoute = pathname.startsWith('/settings') || pathname.startsWith('/api/settings')
+
+    // /admin — superadmin only
+    if (isAdminRoute && role !== 'superadmin') {
       return NextResponse.redirect(new URL('/dashboard', req.url))
     }
+
+    // /settings — tenant_admin or superadmin
+    if (isSettingsRoute && role !== 'tenant_admin' && role !== 'superadmin') {
+      return NextResponse.redirect(new URL('/dashboard', req.url))
+    }
+
     return NextResponse.next()
   },
   {
@@ -25,7 +36,9 @@ export const config = {
   matcher: [
     '/dashboard/:path*',
     '/admin/:path*',
+    '/settings/:path*',
     '/api/query',
     '/api/admin/:path*',
+    '/api/settings/:path*',
   ],
 }

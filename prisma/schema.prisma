@@ -30,7 +30,7 @@ model User {
   email     String    @unique
   name      String?
   password  String                           // bcrypt hashed
-  role      String    @default("user")       // "admin" | "user"
+  role      String    @default("user")       // "superadmin" | "tenant_admin" | "user"
   active    Boolean   @default(true)
   tenantId  String
   tenant    Tenant    @relation(fields: [tenantId], references: [id])

@@ -4,6 +4,7 @@ export const dynamic = 'force-dynamic'
 
 import { useState, useRef, useEffect, KeyboardEvent } from 'react'
 import { useSession, signOut } from 'next-auth/react'
+import { useRouter } from 'next/navigation'
 import type { DisplayHint, StructuredData } from '@/app/api/query/route'
 import DataVisualizer from '@/components/DataVisualizer'
 
@@ -125,7 +126,9 @@ function useHealthStatus(): HealthStatus {
 
 export default function DashboardPage() {
   const { data: session } = useSession()
+  const router = useRouter()
   const user = session?.user as any
+  const isTenantAdmin = user?.role === 'tenant_admin' || user?.role === 'superadmin'
   const health = useHealthStatus()
 
   const [activeNav, setActiveNav] = useState<NavItem>('assistant')
@@ -435,6 +438,21 @@ export default function DashboardPage() {
           >
             🔑
           </button>
+          {isTenantAdmin && (
+            <button
+              onClick={() => router.push('/settings')}
+              title="Settings"
+              style={{
+                background: 'none', border: 'none', cursor: 'pointer',
+                color: 'rgba(214,217,212,0.3)', fontSize: 14, padding: 4, lineHeight: 1,
+                transition: 'color 0.15s', flexShrink: 0,
+              }}
+              onMouseEnter={e => (e.currentTarget.style.color = 'var(--fog)')}
+              onMouseLeave={e => (e.currentTarget.style.color = 'rgba(214,217,212,0.3)')}
+            >
+              ⚙️
+            </button>
+          )}
           <button
             onClick={() => signOut({ callbackUrl: '/login' })}
             title="Sign out"

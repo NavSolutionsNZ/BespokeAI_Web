@@ -73,7 +73,7 @@ export default function AdminPage() {
   const [installerError, setInstallerError]       = useState('')
 
   useEffect(() => {
-    if (user && user.role !== 'admin') router.push('/dashboard')
+    if (user && user.role !== 'superadmin') router.push('/dashboard')
   }, [user, router])
 
   useEffect(() => {
@@ -523,7 +523,7 @@ export default function AdminPage() {
                         <td style={{ ...tdStyle, fontFamily: 'var(--font-mono)', fontSize: 11 }}>{u.email}</td>
                         <td style={tdStyle}>{u.tenant.name}</td>
                         <td style={tdStyle}>
-                          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', padding: '2px 8px', borderRadius: 6, background: u.role === 'admin' ? 'rgba(200,149,42,0.12)' : 'rgba(26,146,114,0.08)', color: u.role === 'admin' ? 'var(--amber)' : 'var(--forest)', border: `1px solid ${u.role === 'admin' ? 'rgba(200,149,42,0.3)' : 'rgba(26,146,114,0.2)'}` }}>
+                          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', padding: '2px 8px', borderRadius: 6, background: u.role === 'superadmin' ? 'rgba(200,149,42,0.12)' : 'rgba(26,146,114,0.08)', color: u.role === 'superadmin' ? 'var(--amber)' : 'var(--forest)', border: `1px solid ${u.role === 'superadmin' ? 'rgba(200,149,42,0.3)' : 'rgba(26,146,114,0.2)'}` }}>
                             {u.role}
                           </span>
                         </td>

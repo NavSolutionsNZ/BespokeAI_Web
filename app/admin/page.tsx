@@ -221,9 +221,14 @@ export default function AdminPage() {
           </h1>
           <div style={{ display: 'flex', gap: 10 }}>
             {tab === 'tenants' && (
-              <button onClick={() => { setShowNewTenant(true); setError('') }} style={btnStyle}>
-                + New Tenant
-              </button>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <a href="https://raw.githubusercontent.com/NavSolutionsNZ/BespokeAI_Web/main/scripts/Install-BespoxAI.ps1" download style={{ ...btnStyle, background: 'transparent', border: '1px solid var(--fog)', color: 'var(--slate)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>
+                  ↓ Installer Script
+                </a>
+                <button onClick={() => { setShowNewTenant(true); setError('') }} style={btnStyle}>
+                  + New Tenant
+                </button>
+              </div>
             )}
             {tab === 'users' && (
               <button onClick={() => { setShowNewUser(true); setError('') }} style={btnStyle}>

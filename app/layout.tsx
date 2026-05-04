@@ -25,6 +25,10 @@ const dmMono = DM_Mono({
 export const metadata: Metadata = {
   title: 'BespoxAI — Intelligence for BC & NAV',
   description: 'AI-powered financial intelligence for Microsoft Business Central and NAV.',
+  icons: {
+    icon: '/favicon.svg',
+    shortcut: '/favicon.svg',
+  },
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

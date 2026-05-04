@@ -254,7 +254,7 @@ export default function RequirementsBuilder({ userRole, tenantId }: Props) {
 
       {/* ── Left: list ──────────────────────────────────────────────────────── */}
       <div style={{
-        width: selected ? 380 : '100%', flexShrink: 0,
+        width: (selected || showCreate) ? 380 : '100%', flexShrink: 0,
         display: 'flex', flexDirection: 'column',
         borderRight: selected ? '1px solid var(--fog)' : 'none',
         overflow: 'hidden', transition: 'width 0.2s',

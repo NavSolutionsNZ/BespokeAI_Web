@@ -327,7 +327,7 @@ export default function AdminPage() {
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 600, color: 'var(--cream)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user?.name}</div>
-            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--amber)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>Admin</div>
+            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--amber)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>{user?.role === 'superadmin' ? 'Super Admin' : user?.role === 'tenant_admin' ? 'Admin' : 'User'}</div>
           </div>
           <button onClick={() => signOut({ callbackUrl: '/login' })} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(214,217,212,0.3)', fontSize: 14, padding: 4 }}>⎋</button>
         </div>
@@ -577,7 +577,7 @@ export default function AdminPage() {
                         <td style={tdStyle}>{u.tenant.name}</td>
                         <td style={tdStyle}>
                           <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', padding: '2px 8px', borderRadius: 6, background: u.role === 'superadmin' ? 'rgba(200,149,42,0.12)' : 'rgba(26,146,114,0.08)', color: u.role === 'superadmin' ? 'var(--amber)' : 'var(--forest)', border: `1px solid ${u.role === 'superadmin' ? 'rgba(200,149,42,0.3)' : 'rgba(26,146,114,0.2)'}` }}>
-                            {u.role}
+                            {u.role === 'superadmin' ? 'Super Admin' : u.role === 'tenant_admin' ? 'Admin' : 'User'}
                           </span>
                         </td>
                         <td style={{ ...tdStyle, textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 11 }}>{u._count.queryLogs}</td>
@@ -672,25 +672,46 @@ export default function AdminPage() {
                             : <span style={{ color: 'var(--slate)', fontSize: 12 }}>Awaiting verification</span>}
                       </td>
                       <td style={{ padding: '10px 12px' }}>
-                        {s.verifiedAt && !s.activatedAt && (
-                          <button
-                            onClick={async () => {
-                              setActivating(s.id)
-                              const res = await fetch(`/api/admin/signups/${s.id}/activate`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) })
-                              const data = await res.json()
-                              if (res.ok) {
-                                setSignups(prev => prev.map(x => x.id === s.id ? { ...x, activatedAt: new Date().toISOString() } : x))
-                              } else {
-                                alert(data.error ?? 'Activation failed')
-                              }
-                              setActivating(null)
-                            }}
-                            disabled={activating === s.id}
-                            style={{ background: '#0A5C46', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
-                          >
-                            {activating === s.id ? 'Activating…' : 'Activate →'}
-                          </button>
-                        )}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                          {!s.verifiedAt && !s.activatedAt && (
+                            <button
+                              onClick={async () => {
+                                setActivating(s.id)
+                                const res = await fetch(`/api/admin/signups/${s.id}/verify`, { method: 'POST' })
+                                const data = await res.json()
+                                if (res.ok) {
+                                  setSignups(prev => prev.map(x => x.id === s.id ? { ...x, verifiedAt: new Date().toISOString() } : x))
+                                } else {
+                                  alert(data.error ?? 'Force verify failed')
+                                }
+                                setActivating(null)
+                              }}
+                              disabled={activating === s.id}
+                              style={{ background: 'transparent', color: '#C8952A', border: '1px solid rgba(200,149,42,0.5)', borderRadius: 6, padding: '5px 12px', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}
+                            >
+                              {activating === s.id ? '…' : '✓ Force Verify'}
+                            </button>
+                          )}
+                          {s.verifiedAt && !s.activatedAt && (
+                            <button
+                              onClick={async () => {
+                                setActivating(s.id)
+                                const res = await fetch(`/api/admin/signups/${s.id}/activate`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) })
+                                const data = await res.json()
+                                if (res.ok) {
+                                  setSignups(prev => prev.map(x => x.id === s.id ? { ...x, activatedAt: new Date().toISOString() } : x))
+                                } else {
+                                  alert(data.error ?? 'Activation failed')
+                                }
+                                setActivating(null)
+                              }}
+                              disabled={activating === s.id}
+                              style={{ background: '#0A5C46', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+                            >
+                              {activating === s.id ? 'Activating…' : 'Activate →'}
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}

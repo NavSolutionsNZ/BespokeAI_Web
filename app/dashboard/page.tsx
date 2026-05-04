@@ -765,7 +765,7 @@ export default function DashboardPage() {
                         `<div class="kpi-card${i === 0 ? ' kpi-primary' : ''}">
                           <div class="kpi-label">${kpi.label}</div>
                           <div class="kpi-value">${kpi.value}</div>
-                          ${kpi.sub ? `<div class="kpi-sub">${kpi.sub}</div>` : ''}
+                          ${kpi.subtext ? `<div class="kpi-sub">${kpi.subtext}</div>` : ''}
                         </div>`
                       ).join('')
                       return `<div class="kpi-grid">${cards}</div>`

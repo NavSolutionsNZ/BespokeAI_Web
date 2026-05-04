@@ -80,8 +80,8 @@ OData rules:
 - Always include $top (default 20, max 100 unless user asks for all)
 - Use $select to limit to relevant fields only — always include the key field
 - String filter: contains(Name,'text'), startswith(No,'C')
-- Date filter: use full datetime literals — Posting_Date ge 2024-01-01T00:00:00Z and Posting_Date le 2024-12-31T23:59:59Z
-- Never use bare date literals like 2024-01-01 — BC 14 OData requires the full ISO 8601 datetime format including T and Z
+- Date filter on Customer/Vendor/Item (non-posted): Posting_Date ge 2024-01-01T00:00:00Z and Posting_Date le 2024-12-31T23:59:59Z
+- NEVER filter by date on posted document entities (SalesInvoice, PurchaseInvoice, SalesCrMemo, GeneralLedgerEntry) — these return 400. Fetch all and let the answerer filter.
 - Number filter: Balance_LCY gt 0, Amount ge 10000
 - Boolean: Open eq true
 - $orderby for sorting: fieldName desc
@@ -96,9 +96,10 @@ CRITICAL — BC 14 does NOT support these — never use them:
 
 For time-series / "by month" / "over last N months" / trend questions:
 - Do NOT attempt OData aggregation — BC 14 will return 400
-- Instead: filter by date range, $select only the date + amount fields, use $top=500
-- Example for "invoice totals last 6 months": $top=500&$filter=Posting_Date ge 2024-06-01T00:00:00Z and Posting_Date le 2024-11-30T23:59:59Z&$select=No,Posting_Date,Amount_Including_VAT&$orderby=Posting_Date asc
-- The answerer step will group and total the raw records by month`,
+- Do NOT use $filter on date fields — BC 14 posted-document entities (SalesInvoice, PurchaseInvoice, GeneralLedgerEntry, SalesCrMemo) do not support date filtering and will return 400
+- Instead: fetch all records with $top=500, $select only the date + amount fields, $orderby by date desc
+- Example for "invoice totals last 6 months": $top=500&$select=No,Posting_Date,Amount_Including_VAT&$orderby=Posting_Date desc
+- The answerer step will filter to the requested date range and group by month`,
         },
         { role: 'user', content: question },
       ],

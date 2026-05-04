@@ -27,6 +27,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const tenantId = (session.user as any).tenantId
   const target = await getTarget(params.id, tenantId)
   if (!target) return NextResponse.json({ error: 'User not found' }, { status: 404 })
+  if (target.role === 'superadmin')
+    return NextResponse.json({ error: 'Cannot modify a superadmin account' }, { status: 403 })
 
   const body = await req.json().catch(() => ({}))
   const { action } = body
@@ -64,6 +66,8 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
   }
   const target = await getTarget(params.id, tenantId)
   if (!target) return NextResponse.json({ error: 'User not found' }, { status: 404 })
+  if (target.role === 'superadmin')
+    return NextResponse.json({ error: 'Cannot delete a superadmin account' }, { status: 403 })
 
   await prisma.user.delete({ where: { id: params.id } })
   return NextResponse.json({ ok: true })

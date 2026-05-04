@@ -21,8 +21,14 @@ export async function GET() {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
   const tenantId = (session.user as any).tenantId
+  const isSuperadmin = role === 'superadmin'
+
   const users = await prisma.user.findMany({
-    where: { tenantId },
+    where: {
+      tenantId,
+      // tenant_admin: never expose superadmin accounts
+      ...(isSuperadmin ? {} : { role: { not: 'superadmin' } }),
+    },
     select: { id: true, name: true, email: true, role: true, active: true, createdAt: true },
     orderBy: { createdAt: 'asc' },
   })
@@ -41,9 +47,10 @@ export async function POST(req: NextRequest) {
 
   if (!email) return NextResponse.json({ error: 'email required' }, { status: 400 })
 
-  // tenant_admin cannot create superadmins
-  if (userRole === 'superadmin') {
-    return NextResponse.json({ error: 'Cannot create superadmin' }, { status: 403 })
+  // tenant_admin can only create regular users; superadmin can create tenant_admin too
+  const allowedRoles = role === 'superadmin' ? ['user', 'tenant_admin'] : ['user']
+  if (!allowedRoles.includes(userRole)) {
+    return NextResponse.json({ error: `Cannot create user with role '${userRole}'` }, { status: 403 })
   }
 
   const existing = await prisma.user.findUnique({ where: { email: email.toLowerCase() } })

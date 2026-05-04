@@ -6,6 +6,7 @@ import { getTenantById, buildODataUrl } from '@/lib/tenants'
 import { getEntitiesSummary } from '@/lib/bc-entities'
 
 export const dynamic = 'force-dynamic'
+export const maxDuration = 60
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
 

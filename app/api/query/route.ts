@@ -226,7 +226,11 @@ Available entities:
 ${getEntitiesSummary(tenant.entityConfig ?? undefined)}
 
 OData rules:
-- Always include $top (default 20, max 100 unless user asks for all)
+- Always include $top. Rules:
+  - Default for simple lookups (no time period): $top=50
+  - ANY question involving a time period (last quarter, last month, last year, last N days/months, this quarter, YTD, etc.): $top=1000 — you MUST fetch enough records to cover the full period since you cannot filter by date server-side on posted documents
+  - Posted document entities (SalesInvoice, PurchaseInvoice, SalesCrMemo, GeneralLedgerEntry): ALWAYS use $top=1000, never less, because date filtering happens in the answerer step not OData
+  - "Show me all" / "list all": $top=500
 - Use $select to limit to relevant fields only — always include the key field
 - String filter: contains(Name,'text'), startswith(No,'C')
 - Date filter on Customer/Vendor/Item (non-posted): Posting_Date ge 2024-01-01T00:00:00Z and Posting_Date le 2024-12-31T23:59:59Z
@@ -247,9 +251,9 @@ CRITICAL — BC 14 does NOT support these — never use them:
 For time-series / "by month" / "over last N months" / trend questions:
 - Do NOT attempt OData aggregation — BC 14 will return 400
 - Do NOT use $filter on date fields — BC 14 posted-document entities (SalesInvoice, PurchaseInvoice, GeneralLedgerEntry, SalesCrMemo) do not support date filtering and will return 400
-- Instead: fetch all records with $top=500, $select only the date + amount fields, $orderby by date desc
-- Example for "invoice totals last 6 months": $top=500&$select=No,Posting_Date,Amount_Including_VAT&$orderby=Posting_Date desc
-- The answerer step will filter to the requested date range and group by month
+- Instead: fetch ALL records with $top=1000, $select only the date + amount fields, $orderby by date desc
+- Example for "invoice totals last 6 months": $top=1000&$select=No,Posting_Date,Sell_to_Customer_Name&$orderby=Posting_Date desc
+- The answerer step will filter to the EXACT date range from DATE_CONTEXT and group by period
 - For invoice/credit memo totals by month: use secondEntity join — SalesInvoice (dates) + SalesInvoiceSalesLines (amounts)
 - For purchase totals by month: use secondEntity join — PurchaseInvoice (dates) + PurchaseInvoicePurchLines (amounts)
 - SalesInvoice / PurchaseInvoice / SalesCrMemo headers have NO amount fields — never $select Amount or Amount_Including_VAT from them

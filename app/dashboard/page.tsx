@@ -772,7 +772,7 @@ export default function DashboardPage() {
                 ))}
                 <div ref={bottomRef} />
               </div>
-            </div>
+            </div>}
 
             {/* Input bar */}
             {!tierBlocked && <div style={{

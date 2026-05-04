@@ -117,11 +117,13 @@ model Requirement {
   description     String    @db.Text
   bcArea          String    // Sales | Purchase | Finance | Inventory | Manufacturing | Project | HR | Other
   priority        String    // nice_to_have | important | critical
-  aiSpec          String?   @db.Text  // JSON: userStory, acceptanceCriteria, bcObjects, complexity, estimatedDays
-  status          String    @default("draft") // draft | submitted | in_review | quoted | approved | in_development | complete | rejected
+  aiSpec          String?   @db.Text  // JSON: userStory, acceptanceCriteria, bcObjects, complexity, estimatedDays, assumptions, questions
+  status          String    @default("draft") // draft | submitted | needs_clarification | in_review | quoted | approved | in_development | complete | rejected
   quote           Decimal?  @db.Decimal(10, 2)
   quoteApprovedAt DateTime?
   consultantNote  String?   @db.Text
+  adminQuestions  String?   @db.Text  // Questions sent back by admin when status = needs_clarification
+  customerAnswers String?   @db.Text  // Customer's answers to admin questions or AI questions
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 

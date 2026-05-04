@@ -5,10 +5,6 @@ import { prisma } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
-// PATCH /api/requirements/[id] — update a requirement
-// Users can: submit (draft→submitted), approve quote (quoted→approved)
-// tenant_admin can do same as user for their tenant's requirements
-// superadmin can: change status to anything, set quote, consultantNote
 export async function PATCH(
   req: NextRequest,
   { params }: { params: { id: string } }
@@ -20,10 +16,9 @@ export async function PATCH(
   const isSuperadmin = user.role === 'superadmin'
   const body = await req.json()
 
-  const existing = await prisma.requirement.findUnique({ where: { id: params.id } })
+  const existing = await (prisma as any).requirement.findUnique({ where: { id: params.id } })
   if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  // Non-superadmin can only touch their own tenant's requirements
   if (!isSuperadmin && existing.tenantId !== user.tenantId) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
@@ -31,35 +26,43 @@ export async function PATCH(
   const updateData: any = {}
 
   if (isSuperadmin) {
-    // Superadmin can update: status, quote, consultantNote, aiSpec
-    if (body.status !== undefined)         updateData.status         = body.status
-    if (body.quote !== undefined)          updateData.quote          = body.quote !== null ? parseFloat(body.quote) : null
-    if (body.consultantNote !== undefined) updateData.consultantNote = body.consultantNote
-    if (body.aiSpec !== undefined)         updateData.aiSpec         = body.aiSpec
-    // Auto-set quoteApprovedAt when status becomes approved
+    if (body.status !== undefined)          updateData.status          = body.status
+    if (body.quote !== undefined)           updateData.quote           = body.quote !== null ? parseFloat(body.quote) : null
+    if (body.consultantNote !== undefined)  updateData.consultantNote  = body.consultantNote
+    if (body.aiSpec !== undefined)          updateData.aiSpec          = body.aiSpec
+    if (body.adminQuestions !== undefined)  updateData.adminQuestions  = body.adminQuestions
+    // Auto-set quoteApprovedAt when approved
     if (body.status === 'approved' && !existing.quoteApprovedAt) {
       updateData.quoteApprovedAt = new Date()
     }
+    // Send back → needs_clarification
+    if (body.status === 'needs_clarification' && body.adminQuestions) {
+      updateData.adminQuestions = body.adminQuestions
+    }
   } else {
-    // Regular user / tenant_admin: can submit draft, approve quote, update title/description while draft
-    const { status, title, description, bcArea, priority } = body
+    // Customer / tenant_admin
+    const { status, title, description, bcArea, priority, customerAnswers } = body
 
-    if (status === 'submitted' && existing.status === 'draft') {
+    // Submit (draft → submitted, or needs_clarification → submitted)
+    if (status === 'submitted' && (existing.status === 'draft' || existing.status === 'needs_clarification')) {
       updateData.status = 'submitted'
     }
+    // Approve quote (quoted → approved)
     if (status === 'approved' && existing.status === 'quoted') {
       updateData.status = 'approved'
       updateData.quoteApprovedAt = new Date()
     }
-    if (existing.status === 'draft') {
-      if (title !== undefined)       updateData.title       = title.trim()
-      if (description !== undefined) updateData.description = description.trim()
-      if (bcArea !== undefined)      updateData.bcArea      = bcArea
-      if (priority !== undefined)    updateData.priority    = priority
+    // Edit while draft
+    if (existing.status === 'draft' || existing.status === 'needs_clarification') {
+      if (title !== undefined)           updateData.title           = title.trim()
+      if (description !== undefined)     updateData.description     = description.trim()
+      if (bcArea !== undefined)          updateData.bcArea          = bcArea
+      if (priority !== undefined)        updateData.priority        = priority
+      if (customerAnswers !== undefined) updateData.customerAnswers = customerAnswers
     }
   }
 
-  const updated = await prisma.requirement.update({
+  const updated = await (prisma as any).requirement.update({
     where: { id: params.id },
     data: updateData,
     include: {
@@ -71,7 +74,6 @@ export async function PATCH(
   return NextResponse.json({ requirement: updated })
 }
 
-// DELETE /api/requirements/[id] — delete (only draft, only owner or superadmin)
 export async function DELETE(
   _req: NextRequest,
   { params }: { params: { id: string } }
@@ -82,14 +84,13 @@ export async function DELETE(
   const user = session.user as any
   const isSuperadmin = user.role === 'superadmin'
 
-  const existing = await prisma.requirement.findUnique({ where: { id: params.id } })
+  const existing = await (prisma as any).requirement.findUnique({ where: { id: params.id } })
   if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  // Only allow deleting drafts (unless superadmin)
   if (!isSuperadmin && (existing.status !== 'draft' || existing.tenantId !== user.tenantId)) {
     return NextResponse.json({ error: 'Cannot delete a submitted requirement' }, { status: 403 })
   }
 
-  await prisma.requirement.delete({ where: { id: params.id } })
+  await (prisma as any).requirement.delete({ where: { id: params.id } })
   return NextResponse.json({ ok: true })
 }

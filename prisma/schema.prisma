@@ -19,6 +19,7 @@ model Tenant {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
   users           User[]
+  queryLogs       QueryLog[]
 }
 
 model User {
@@ -33,6 +34,7 @@ model User {
   updatedAt DateTime  @updatedAt
   accounts  Account[]
   sessions  Session[]
+  queryLogs QueryLog[]
 }
 
 // --- NextAuth required models ---
@@ -69,4 +71,20 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
+}
+
+model QueryLog {
+  id          String   @id @default(cuid())
+  tenantId    String
+  userId      String
+  question    String
+  answer      String   @db.Text
+  displayHint String?
+  data        Json?
+  entity      String?
+  recordCount Int?
+  createdAt   DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  user   User   @relation(fields: [userId], references: [id])
 }

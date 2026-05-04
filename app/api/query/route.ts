@@ -4,6 +4,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { getTenantById, buildODataUrl } from '@/lib/tenants'
 import { getEntitiesSummary } from '@/lib/bc-entities'
+import { prisma } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -293,6 +294,21 @@ Numbers in rows must be raw numeric — no $ signs or commas.`,
       { status: 500 },
     )
   }
+
+  // ── Persist to QueryLog (non-blocking) ───────────────────────────────────
+
+  prisma.queryLog.create({
+    data: {
+      tenantId:    tenant.tenantId,
+      userId:      session.user.id,
+      question,
+      answer:      payload.answer,
+      displayHint: payload.displayHint,
+      data:        payload.data ?? undefined,
+      entity:      plan.entity,
+      recordCount: rawRecords.length,
+    },
+  }).catch(() => { /* non-fatal */ })
 
   // ── Return ───────────────────────────────────────────────────────────────
 

@@ -16,6 +16,17 @@ interface HealthStatus {
   error?:     string
 }
 
+interface QueryLogItem {
+  id:          string
+  question:    string
+  answer:      string
+  displayHint: string | null
+  data:        any
+  entity:      string | null
+  recordCount: number | null
+  createdAt:   string
+}
+
 interface QueryResult {
   id: string
   question: string
@@ -94,6 +105,15 @@ export default function DashboardPage() {
   const [history, setHistory]     = useState<QueryResult[]>([])
   const [showMeta, setShowMeta]   = useState<string | null>(null)
   const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [queryLogs, setQueryLogs] = useState<QueryLogItem[]>([])
+
+  // Load query history on mount
+  useEffect(() => {
+    fetch('/api/history')
+      .then(r => r.json())
+      .then(d => setQueryLogs(d.logs ?? []))
+      .catch(() => {})
+  }, [])
 
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const bottomRef   = useRef<HTMLDivElement>(null)
@@ -132,6 +152,9 @@ export default function DashboardPage() {
         data: data.data, meta: data.meta, error: data.error,
         errorDetail: data.detail, errorUrl: data.odataUrl,
       }))
+      if (!data.error) {
+        fetch('/api/history').then(r => r.json()).then(d => setQueryLogs(d.logs ?? [])).catch(() => {})
+      }
     } catch {
       setHistory(prev => prev.map(item => item.id !== id ? item : {
         ...item, loading: false, error: 'Network error — could not reach server.',
@@ -255,6 +278,47 @@ export default function DashboardPage() {
             )
           })}
         </nav>
+
+        {/* Query history */}
+        {queryLogs.length > 0 && (
+          <div style={{ padding: '12px 10px 0', borderTop: '1px solid rgba(255,255,255,0.06)', marginTop: 8 }}>
+            <div style={{ padding: '0 10px 8px', fontFamily: 'var(--font-mono)', fontSize: 8, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'rgba(214,217,212,0.3)' }}>
+              Recent queries
+            </div>
+            <div style={{ overflowY: 'auto', maxHeight: 220 }}>
+              {queryLogs.map(log => (
+                <button
+                  key={log.id}
+                  onClick={() => {
+                    setQuestion(log.question)
+                    setActiveNav('assistant')
+                    textareaRef.current?.focus()
+                  }}
+                  title={log.question}
+                  style={{
+                    width: '100%', display: 'flex', flexDirection: 'column', gap: 2,
+                    padding: '7px 10px', borderRadius: 6, marginBottom: 1,
+                    border: 'none', background: 'transparent', cursor: 'pointer',
+                    textAlign: 'left', transition: 'background 0.15s',
+                  }}
+                  onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.05)')}
+                  onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                >
+                  <span style={{
+                    fontFamily: 'var(--font-body)', fontSize: 11,
+                    color: 'rgba(214,217,212,0.7)', whiteSpace: 'nowrap',
+                    overflow: 'hidden', textOverflow: 'ellipsis', display: 'block',
+                  }}>
+                    {log.question}
+                  </span>
+                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: 8, color: 'rgba(214,217,212,0.25)', letterSpacing: '0.08em' }}>
+                    {log.entity ?? ''}{log.entity && log.recordCount ? ' · ' : ''}{log.recordCount ? `${log.recordCount} records` : ''} · {formatRelativeTime(new Date(log.createdAt))}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* User */}
         <div style={{

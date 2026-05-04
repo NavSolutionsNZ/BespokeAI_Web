@@ -108,6 +108,7 @@ OData rules:
 - $orderby for sorting: fieldName desc
 - Combine with 'and' / 'or'
 - OData field names use underscores (e.g. Sell_to_Customer_No, not SellToCustomerNo)
+- CRITICAL: only use field names that appear in the entity's Fields list above — never guess or invent field names (e.g. use E_Mail not Email, Balance_LCY not Balance)
 
 CRITICAL — BC 14 does NOT support these — never use them:
 - $apply (no aggregation, no groupby, no aggregate())

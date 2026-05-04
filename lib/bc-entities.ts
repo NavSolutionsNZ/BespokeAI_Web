@@ -148,7 +148,8 @@ export type BCEntityName = keyof typeof BC_ENTITIES
 /** Returns a formatted string for Claude's system prompt */
 export function getEntitiesSummary(): string {
   return Object.entries(BC_ENTITIES)
-    .map(([name, info]) => `  - ${name}: ${info.description}`)
+    .map(([name, info]) =>
+      `  - ${name}: ${info.description}\n    Fields: ${info.usefulFields.join(', ')}`)
     .join('\n')
 }
 

@@ -96,7 +96,7 @@ Example — invoice totals by month needs dates from SalesInvoice AND amounts fr
 }
 
 Available entities:
-${getEntitiesSummary()}
+${getEntitiesSummary(tenant.entityConfig ?? undefined)}
 
 OData rules:
 - Always include $top (default 20, max 100 unless user asks for all)

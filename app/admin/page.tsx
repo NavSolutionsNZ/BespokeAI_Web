@@ -27,7 +27,7 @@ interface Stats {
   tenants: any[]; topEntities: { entity: string; _count: { entity: number } }[]
 }
 
-type Tab = 'overview' | 'tenants' | 'users'
+type Tab = 'overview' | 'tenants' | 'users' | 'entities'
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -55,6 +55,12 @@ export default function AdminPage() {
   const [saving, setSaving] = useState(false)
   const [error, setError]   = useState('')
 
+  // Entity discovery state
+  const [discoverTenantId, setDiscoverTenantId]   = useState('')
+  const [discovering, setDiscovering]             = useState(false)
+  const [discoveryResult, setDiscoveryResult]     = useState<any>(null)
+  const [togglingEntity, setTogglingEntity]       = useState('')
+
   useEffect(() => {
     if (user && user.role !== 'admin') router.push('/dashboard')
   }, [user, router])
@@ -79,6 +85,32 @@ export default function AdminPage() {
       body: JSON.stringify({ active: !active }),
     })
     setTenants(prev => prev.map(t => t.id === id ? { ...t, active: !active } : t))
+  }
+
+  async function discoverEntities(tenantId: string) {
+    setDiscovering(true); setDiscoveryResult(null); setDiscoverTenantId(tenantId)
+    const res  = await fetch(`/api/admin/discover/${tenantId}`)
+    const data = await res.json()
+    setDiscoveryResult(data)
+    setDiscovering(false)
+  }
+
+  async function toggleEntity(tenantId: string, entity: string, enabled: boolean) {
+    setTogglingEntity(entity)
+    await fetch(`/api/admin/entities/${tenantId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ entity, enabled }),
+    })
+    if (discoveryResult) {
+      setDiscoveryResult((prev: any) => ({
+        ...prev,
+        available: prev.available.map((e: any) =>
+          e.name === entity ? { ...e, enabled } : e
+        ),
+      }))
+    }
+    setTogglingEntity('')
   }
 
   async function createTenant() {
@@ -136,7 +168,7 @@ export default function AdminPage() {
         </div>
 
         <nav style={{ flex: 1, padding: '12px 10px' }}>
-          {([['overview', 'Overview'], ['tenants', 'Tenants'], ['users', 'Users']] as [Tab, string][]).map(([id, label]) => (
+          {([['overview', 'Overview'], ['tenants', 'Tenants'], ['users', 'Users'], ['entities', 'Entities']] as [Tab, string][]).map(([id, label]) => (
             <button key={id} onClick={() => setTab(id)} style={{
               width: '100%', display: 'flex', alignItems: 'center', gap: 10,
               padding: '9px 10px', borderRadius: 8, marginBottom: 2, border: 'none',
@@ -385,6 +417,112 @@ export default function AdminPage() {
               </div>
             </div>
           )}
+        {/* ── Entities tab ──────────────────────────────────────────────── */}
+          {tab === 'entities' && (
+            <div style={{ maxWidth: 860 }}>
+              {/* Tenant selector */}
+              <div style={{ background: 'var(--white)', border: '1px solid var(--fog)', borderRadius: 12, padding: '20px 24px', marginBottom: 20 }}>
+                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--slate)', marginBottom: 8 }}>Select tenant to scan</div>
+                <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                  <select style={{ ...inputStyle, flex: 1 }} value={discoverTenantId} onChange={e => setDiscoverTenantId(e.target.value)}>
+                    <option value="">Choose a tenant…</option>
+                    {tenants.filter(t => t.active).map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                  </select>
+                  <button onClick={() => discoverTenantId && discoverEntities(discoverTenantId)} disabled={!discoverTenantId || discovering} style={{ ...btnStyle, flexShrink: 0, opacity: (!discoverTenantId || discovering) ? 0.6 : 1 }}>
+                    {discovering ? 'Scanning…' : 'Scan BC'}
+                  </button>
+                </div>
+                {discoveryResult?.fetchError && (
+                  <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#A32D2D', marginTop: 10 }}>⚠ Could not reach BCAgent: {discoveryResult.fetchError}</p>
+                )}
+              </div>
+
+              {discoveryResult && !discoveryResult.fetchError && (
+                <>
+                  {/* Summary */}
+                  <div style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
+                    {[
+                      { label: 'Available in BC', value: discoveryResult.available?.length ?? 0, color: 'var(--forest)' },
+                      { label: 'Missing from BC', value: discoveryResult.missing?.length ?? 0, color: 'var(--amber)' },
+                      { label: 'Uncatalogued', value: discoveryResult.uncatalogued?.length ?? 0, color: 'var(--slate)' },
+                      { label: 'Total in BC', value: discoveryResult.totalInBC ?? 0, color: 'var(--ink)' },
+                    ].map((s, i) => (
+                      <div key={i} style={{ flex: '1 1 120px', background: 'var(--white)', border: '1px solid var(--fog)', borderRadius: 10, padding: '12px 16px' }}>
+                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--slate)', marginBottom: 4 }}>{s.label}</div>
+                        <div style={{ fontFamily: 'var(--font-display)', fontSize: 28, fontWeight: 300, color: s.color }}>{s.value}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Available entities — toggleable */}
+                  {discoveryResult.available?.length > 0 && (
+                    <>
+                      <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'var(--slate)', marginBottom: 10 }}>Available in this BC — toggle to enable/disable for AI planner</div>
+                      <div style={{ background: 'var(--white)', border: '1px solid var(--fog)', borderRadius: 12, overflow: 'hidden', marginBottom: 20 }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                          <thead><tr style={{ borderBottom: '1px solid var(--fog)' }}>
+                            {['Entity', 'Description', 'Enabled'].map(h => <th key={h} style={thStyle}>{h}</th>)}
+                          </tr></thead>
+                          <tbody>
+                            {discoveryResult.available.map((e: any) => (
+                              <tr key={e.name} style={{ borderBottom: '1px solid var(--fog)', opacity: e.enabled ? 1 : 0.55 }}>
+                                <td style={{ ...tdStyle, fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 500 }}>{e.name}</td>
+                                <td style={{ ...tdStyle, fontSize: 12, color: 'var(--slate)', maxWidth: 360 }}>{e.description.split('—')[0].trim()}</td>
+                                <td style={tdStyle}>
+                                  <button
+                                    disabled={togglingEntity === e.name}
+                                    onClick={() => toggleEntity(discoverTenantId, e.name, !e.enabled)}
+                                    style={{ ...ghostBtn, color: e.enabled ? 'var(--forest)' : 'var(--slate)', fontFamily: 'var(--font-mono)', fontSize: 11 }}
+                                  >
+                                    {togglingEntity === e.name ? '…' : e.enabled ? '● On' : '○ Off'}
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </>
+                  )}
+
+                  {/* Uncatalogued entities */}
+                  {discoveryResult.uncatalogued?.length > 0 && (
+                    <>
+                      <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'var(--slate)', marginBottom: 10 }}>Published in BC but not yet in BespoxAI catalogue</div>
+                      <div style={{ background: 'var(--white)', border: '1px solid var(--fog)', borderRadius: 12, overflow: 'hidden', marginBottom: 20 }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                          <thead><tr style={{ borderBottom: '1px solid var(--fog)' }}>
+                            {['Entity name', 'Status'].map(h => <th key={h} style={thStyle}>{h}</th>)}
+                          </tr></thead>
+                          <tbody>
+                            {discoveryResult.uncatalogued.map((e: any) => (
+                              <tr key={e.name} style={{ borderBottom: '1px solid var(--fog)' }}>
+                                <td style={{ ...tdStyle, fontFamily: 'var(--font-mono)', fontSize: 11 }}>{e.name}</td>
+                                <td style={{ ...tdStyle, fontSize: 12, color: 'var(--slate)' }}>Use /api/bc-test?entity={e.name} to inspect fields</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </>
+                  )}
+
+                  {/* Missing entities */}
+                  {discoveryResult.missing?.length > 0 && (
+                    <>
+                      <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'var(--slate)', marginBottom: 10 }}>In BespoxAI catalogue but not published in this BC</div>
+                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                        {discoveryResult.missing.map((e: any) => (
+                          <span key={e.name} style={{ fontFamily: 'var(--font-mono)', fontSize: 10, padding: '4px 10px', borderRadius: 6, background: 'rgba(163,45,45,0.06)', border: '1px solid rgba(163,45,45,0.15)', color: '#A32D2D' }}>{e.name}</span>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+
         </div>
       </div>
     </div>

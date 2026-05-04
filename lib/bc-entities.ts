@@ -173,9 +173,10 @@ export const BC_ENTITIES = {
 
 export type BCEntityName = keyof typeof BC_ENTITIES
 
-/** Returns a formatted string for Claude's system prompt */
-export function getEntitiesSummary(): string {
+/** Returns a formatted string for Claude's system prompt, optionally filtered by enabled entities */
+export function getEntitiesSummary(enabledEntities?: Record<string, boolean>): string {
   return Object.entries(BC_ENTITIES)
+    .filter(([name]) => !enabledEntities || enabledEntities[name] !== false)
     .map(([name, info]) =>
       `  - ${name}: ${info.description}\n    Fields: ${info.usefulFields.join(', ')}`)
     .join('\n')

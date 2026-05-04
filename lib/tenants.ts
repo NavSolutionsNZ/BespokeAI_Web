@@ -8,11 +8,17 @@ export interface TenantConfig {
   bcCompany: string
   apiKey: string
   agentBaseUrl: string
+  entityConfig: Record<string, boolean> | null
 }
 
 export async function getTenantById(tenantId: string): Promise<TenantConfig | null> {
   const tenant = await prisma.tenant.findUnique({
     where: { id: tenantId, active: true },
+    select: {
+      id: true, name: true, tunnelSubdomain: true,
+      bcInstance: true, bcCompany: true, apiKey: true,
+      entityConfig: true,
+    },
   })
   if (!tenant) return null
   return mapTenant(tenant)
@@ -35,6 +41,7 @@ function mapTenant(tenant: {
   bcInstance: string
   bcCompany: string
   apiKey: string
+  entityConfig?: any
 }): TenantConfig {
   return {
     tenantId: tenant.id,
@@ -44,6 +51,7 @@ function mapTenant(tenant: {
     bcCompany: tenant.bcCompany,
     apiKey: tenant.apiKey,
     agentBaseUrl: `https://${tenant.tunnelSubdomain}-agent.bespoxai.com`,
+    entityConfig: (tenant.entityConfig as Record<string, boolean> | null) ?? null,
   }
 }
 

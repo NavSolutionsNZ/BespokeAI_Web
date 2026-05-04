@@ -99,7 +99,10 @@ For time-series / "by month" / "over last N months" / trend questions:
 - Do NOT use $filter on date fields — BC 14 posted-document entities (SalesInvoice, PurchaseInvoice, GeneralLedgerEntry, SalesCrMemo) do not support date filtering and will return 400
 - Instead: fetch all records with $top=500, $select only the date + amount fields, $orderby by date desc
 - Example for "invoice totals last 6 months": $top=500&$select=No,Posting_Date,Amount_Including_VAT&$orderby=Posting_Date desc
-- The answerer step will filter to the requested date range and group by month`,
+- The answerer step will filter to the requested date range and group by month
+- For invoice/credit memo totals: use SalesInvoiceSalesLines (has Posting_Date + Line_Amount), not SalesInvoice header
+- For purchase totals: use PurchaseInvoicePurchLines (has Posting_Date + Line_Amount), not PurchaseInvoice header
+- SalesInvoice / PurchaseInvoice / SalesCrMemo headers have NO amount fields — never $select Amount or Amount_Including_VAT from them`,
         },
         { role: 'user', content: question },
       ],

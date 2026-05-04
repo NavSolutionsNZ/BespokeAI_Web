@@ -33,34 +33,35 @@ export const BC_ENTITIES = {
     ],
   },
   SalesInvoice: {
-    description: 'Posted sales invoices',
+    description: 'Posted sales invoice headers — dates, customer, payment terms only. Has NO amount fields. Use SalesInvoiceSalesLines for amounts.',
     keyField: 'No',
     usefulFields: [
       'No', 'Sell_to_Customer_No', 'Sell_to_Customer_Name',
-      'Posting_Date', 'Due_Date', 'Amount', 'Amount_Including_VAT',
+      'Posting_Date', 'Document_Date', 'Due_Date',
+      'Payment_Terms_Code', 'Payment_Method_Code', 'Salesperson_Code', 'Currency_Code',
     ],
   },
   SalesInvoiceSalesLines: {
-    description: 'Posted sales invoice lines — individual line items on sales invoices',
+    description: 'Posted sales invoice lines — use this for invoice amounts/totals. Has Line_Amount and Posting_Date. Join on Document_No to SalesInvoice header.',
     keyField: 'Document_No',
     usefulFields: [
-      'Document_No', 'Line_No', 'Type', 'No', 'Description',
+      'Document_No', 'Line_No', 'Posting_Date', 'Type', 'No', 'Description',
       'Quantity', 'Unit_Price', 'Line_Amount',
     ],
   },
   SalesCrMemo: {
-    description: 'Posted sales credit memos / credit notes',
+    description: 'Posted sales credit memo headers — dates and customer only. No amount fields. Use SalesCrMemoSalesLines for amounts.',
     keyField: 'No',
     usefulFields: [
       'No', 'Sell_to_Customer_No', 'Sell_to_Customer_Name',
-      'Posting_Date', 'Amount', 'Amount_Including_VAT',
+      'Posting_Date', 'Document_Date', 'Payment_Terms_Code', 'Currency_Code',
     ],
   },
   SalesCrMemoSalesLines: {
-    description: 'Sales credit memo lines',
+    description: 'Sales credit memo lines — use for credit note amounts. Has Line_Amount and Posting_Date.',
     keyField: 'Document_No',
     usefulFields: [
-      'Document_No', 'Line_No', 'No', 'Description',
+      'Document_No', 'Line_No', 'Posting_Date', 'No', 'Description',
       'Quantity', 'Unit_Price', 'Line_Amount',
     ],
   },
@@ -92,18 +93,19 @@ export const BC_ENTITIES = {
     ],
   },
   PurchaseInvoice: {
-    description: 'Posted purchase invoices',
+    description: 'Posted purchase invoice headers — dates and vendor only. No amount fields. Use PurchaseInvoicePurchLines for amounts.',
     keyField: 'No',
     usefulFields: [
       'No', 'Buy_from_Vendor_No', 'Buy_from_Vendor_Name',
-      'Posting_Date', 'Due_Date', 'Amount', 'Amount_Including_VAT',
+      'Posting_Date', 'Document_Date', 'Due_Date',
+      'Payment_Terms_Code', 'Currency_Code',
     ],
   },
   PurchaseInvoicePurchLines: {
-    description: 'Posted purchase invoice lines',
+    description: 'Posted purchase invoice lines — use for AP amounts/totals. Has Line_Amount and Posting_Date.',
     keyField: 'Document_No',
     usefulFields: [
-      'Document_No', 'Line_No', 'No', 'Description',
+      'Document_No', 'Line_No', 'Posting_Date', 'No', 'Description',
       'Quantity', 'Direct_Unit_Cost', 'Line_Amount',
     ],
   },

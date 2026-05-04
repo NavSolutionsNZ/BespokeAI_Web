@@ -2,12 +2,13 @@
 
 export const dynamic = 'force-dynamic'
 
+import { Suspense } from 'react'
 import { useState, FormEvent } from 'react'
 import { signIn } from 'next-auth/react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const callbackUrl = searchParams.get('callbackUrl') ?? '/dashboard'
@@ -263,5 +264,13 @@ export default function LoginPage() {
         }
       `}</style>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div style={{ minHeight: '100vh', background: 'var(--cream)' }} />}>
+      <LoginForm />
+    </Suspense>
   )
 }

@@ -106,7 +106,7 @@ export default function DemoPage() {
           </span>
         </div>
         <a
-          href="/signup"
+          href="/login"
           style={{
             background: '#C8952A',
             color: '#040E09',
@@ -118,7 +118,7 @@ export default function DemoPage() {
             whiteSpace: 'nowrap',
           }}
         >
-          Start free trial →
+          Get started →
         </a>
       </div>
 
@@ -159,7 +159,7 @@ export default function DemoPage() {
             Sign in
           </a>
           <a
-            href="/signup"
+            href="/login"
             style={{
               background: 'transparent',
               border: '1px solid #0A5C46',
@@ -170,7 +170,7 @@ export default function DemoPage() {
               textDecoration: 'none',
             }}
           >
-            Start free trial
+            Get started
           </a>
         </div>
       </header>
@@ -242,7 +242,7 @@ export default function DemoPage() {
             <div style={{ fontSize: 11, color: '#8a9a8e', marginBottom: 10, lineHeight: 1.5 }}>
               7-day free trial. Your live data, your questions.
             </div>
-            <a href="/signup" style={{
+            <a href="/login" style={{
               display: 'block',
               background: '#C8952A',
               color: '#040E09',
@@ -253,7 +253,7 @@ export default function DemoPage() {
               fontWeight: 700,
               textDecoration: 'none',
             }}>
-              Start free trial
+              Get started
             </a>
           </div>
         </aside>
@@ -445,7 +445,7 @@ export default function DemoPage() {
               </div>
               <p style={{ fontSize: 11, color: '#8a9a8e', textAlign: 'center', marginTop: 8, marginBottom: 0 }}>
                 Demo data only · No Business Central connection ·{' '}
-                <a href="/signup" style={{ color: '#0A5C46', textDecoration: 'none', fontWeight: 600 }}>
+                <a href="/login" style={{ color: '#0A5C46', textDecoration: 'none', fontWeight: 600 }}>
                   Start your free trial to connect your real data →
                 </a>
               </p>

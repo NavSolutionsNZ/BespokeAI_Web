@@ -11,7 +11,7 @@ export const dynamic = 'force-dynamic'
 
 export async function POST(req: NextRequest, { params }: { params: { tenantId: string } }) {
   const session = await getServerSession(authOptions)
-  if (!session?.user || (session.user as any).role !== 'admin')
+  if (!session?.user || (session.user as any).role !== 'superadmin')
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const tenant = await prisma.tenant.findUnique({ where: { id: params.tenantId } })

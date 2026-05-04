@@ -6,17 +6,20 @@ export default withAuth(
     const token    = (req as any).nextauth?.token
     const role     = token?.role as string | undefined
     const pathname = req.nextUrl.pathname
+    const isApi    = pathname.startsWith('/api/')
 
     const isAdminRoute    = pathname.startsWith('/admin')    || pathname.startsWith('/api/admin')
     const isSettingsRoute = pathname.startsWith('/settings') || pathname.startsWith('/api/settings')
 
     // /admin — superadmin only
     if (isAdminRoute && role !== 'superadmin') {
+      if (isApi) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
       return NextResponse.redirect(new URL('/dashboard', req.url))
     }
 
     // /settings — tenant_admin or superadmin
     if (isSettingsRoute && role !== 'tenant_admin' && role !== 'superadmin') {
+      if (isApi) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
       return NextResponse.redirect(new URL('/dashboard', req.url))
     }
 
@@ -27,8 +30,12 @@ export default withAuth(
     callbacks: {
       authorized({ token, req }) {
         const pathname = req.nextUrl.pathname
-        // Demo routes are public — no auth required
-        if (pathname.startsWith('/demo') || pathname.startsWith('/api/demo')) return true
+        // Demo + signup routes are public — no auth required
+        if (
+          pathname.startsWith('/demo') ||
+          pathname.startsWith('/api/demo') ||
+          pathname.startsWith('/signup')
+        ) return true
         return !!token?.tenantId
       },
     },
@@ -41,6 +48,7 @@ export const config = {
     '/admin/:path*',
     '/settings/:path*',
     '/demo/:path*',
+    '/signup/:path*',
     '/api/query',
     '/api/admin/:path*',
     '/api/settings/:path*',

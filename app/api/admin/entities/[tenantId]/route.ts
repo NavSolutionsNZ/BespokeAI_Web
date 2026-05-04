@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic'
 // GET /api/admin/entities/[tenantId] — return current entity config
 export async function GET(_req: NextRequest, { params }: { params: { tenantId: string } }) {
   const session = await getServerSession(authOptions)
-  if (!session?.user || (session.user as any).role !== 'admin')
+  if (!session?.user || (session.user as any).role !== 'superadmin')
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const tenant = await prisma.tenant.findUnique({
@@ -24,7 +24,7 @@ export async function GET(_req: NextRequest, { params }: { params: { tenantId: s
 // Body: { entity: "Customer", enabled: false }
 export async function PATCH(req: NextRequest, { params }: { params: { tenantId: string } }) {
   const session = await getServerSession(authOptions)
-  if (!session?.user || (session.user as any).role !== 'admin')
+  if (!session?.user || (session.user as any).role !== 'superadmin')
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const { entity, enabled } = await req.json().catch(() => ({}))

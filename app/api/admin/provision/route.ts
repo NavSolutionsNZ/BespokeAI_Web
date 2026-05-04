@@ -17,7 +17,7 @@ export const dynamic = 'force-dynamic'
 // Returns: tenant record (installer can then be downloaded via /api/admin/installer/[id])
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions)
-  if (!session?.user || (session.user as any).role !== 'admin')
+  if (!session?.user || (session.user as any).role !== 'superadmin')
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const body = await req.json().catch(() => ({}))

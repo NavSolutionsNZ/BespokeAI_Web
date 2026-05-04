@@ -7,7 +7,7 @@ import crypto from 'crypto'
 export const dynamic = 'force-dynamic'
 
 function adminGuard(session: any) {
-  if (!session?.user || (session.user as any).role !== 'admin')
+  if (!session?.user || (session.user as any).role !== 'superadmin')
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   return null
 }

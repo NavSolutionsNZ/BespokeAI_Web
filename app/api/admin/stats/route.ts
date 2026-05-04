@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic'
 // GET /api/admin/stats — query usage stats per tenant
 export async function GET() {
   const session = await getServerSession(authOptions)
-  if (!session?.user || (session.user as any).role !== 'admin')
+  if (!session?.user || (session.user as any).role !== 'superadmin')
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const [totalQueries, todayQueries, tenants, topEntities] = await Promise.all([
@@ -26,6 +26,8 @@ export async function GET() {
         id:   true,
         name: true,
         active: true,
+        tier: true,
+        trialEndsAt: true,
         _count: { select: { queryLogs: true, users: true } },
         queryLogs: {
           orderBy: { createdAt: 'desc' },

@@ -8,6 +8,7 @@ import { useRouter } from 'next/navigation'
 import type { DisplayHint, StructuredData } from '@/app/api/query/route'
 import DataVisualizer from '@/components/DataVisualizer'
 import { UpgradePrompt } from '@/components/UpgradePrompt'
+import RequirementsBuilder from '@/components/RequirementsBuilder'
 
 // ─── PDF helpers ──────────────────────────────────────────────────────────────
 
@@ -71,7 +72,7 @@ interface QueryResult {
   loading?: boolean
 }
 
-type NavItem = 'assistant' | 'health' | 'cashflow' | 'monthend' | 'migration'
+type NavItem = 'assistant' | 'health' | 'customisations' | 'cashflow' | 'monthend' | 'migration'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -85,11 +86,12 @@ const EXAMPLE_QUERIES = [
 ]
 
 const NAV_ITEMS: { id: NavItem; icon: string; label: string; badge?: string; soon?: boolean }[] = [
-  { id: 'assistant', icon: '💬', label: 'CFO Assistant' },
-  { id: 'health',    icon: '🔍', label: 'Health Scanner', badge: '3' },
-  { id: 'cashflow',  icon: '📊', label: 'Cash Flow', soon: true },
-  { id: 'monthend',  icon: '📅', label: 'Month-End Close', soon: true },
-  { id: 'migration', icon: '🏗️', label: 'Migration Analyser', soon: true },
+  { id: 'assistant',      icon: '💬', label: 'CFO Assistant' },
+  { id: 'health',         icon: '🔍', label: 'Health Scanner', badge: '3' },
+  { id: 'customisations', icon: '🛠️', label: 'Customisations' },
+  { id: 'cashflow',       icon: '📊', label: 'Cash Flow', soon: true },
+  { id: 'monthend',       icon: '📅', label: 'Month-End Close', soon: true },
+  { id: 'migration',      icon: '🏗️', label: 'Migration Analyser', soon: true },
 ]
 
 // ─── Health polling hook ──────────────────────────────────────────────────────
@@ -498,7 +500,7 @@ export default function DashboardPage() {
                 fontFamily: 'var(--font-display)', fontWeight: 500, fontSize: 20,
                 color: 'var(--ink)', lineHeight: 1,
               }}>
-                {activeNav === 'assistant' ? 'CFO Assistant' : 'Data Health Scanner'}
+                {activeNav === 'assistant' ? 'CFO Assistant' : activeNav === 'customisations' ? 'Customisations' : 'Data Health Scanner'}
               </h1>
             </div>
           </div>
@@ -830,6 +832,14 @@ export default function DashboardPage() {
               <HealthScoreCard />
             </div>
           </div>
+        )}
+
+        {/* ── Customisations ─────────────────────────────────────────────────── */}
+        {activeNav === 'customisations' && (
+          <RequirementsBuilder
+            userRole={user?.role ?? 'user'}
+            tenantId={user?.tenantId ?? ''}
+          />
         )}
       </div>
 

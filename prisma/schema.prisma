@@ -25,6 +25,7 @@ model Tenant {
   updatedAt       DateTime @updatedAt
   users           User[]
   queryLogs       QueryLog[]
+  requirements    Requirement[]
 }
 
 model User {
@@ -41,6 +42,7 @@ model User {
   accounts      Account[]
   sessions      Session[]
   queryLogs     QueryLog[]
+  requirements  Requirement[]
 }
 
 model SignupRequest {
@@ -102,6 +104,26 @@ model QueryLog {
   entity      String?
   recordCount Int?
   createdAt   DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  user   User   @relation(fields: [userId], references: [id])
+}
+
+model Requirement {
+  id              String    @id @default(cuid())
+  tenantId        String
+  userId          String
+  title           String
+  description     String    @db.Text
+  bcArea          String    // Sales | Purchase | Finance | Inventory | Manufacturing | Project | HR | Other
+  priority        String    // nice_to_have | important | critical
+  aiSpec          String?   @db.Text  // JSON: userStory, acceptanceCriteria, bcObjects, complexity, estimatedDays
+  status          String    @default("draft") // draft | submitted | in_review | quoted | approved | in_development | complete | rejected
+  quote           Decimal?  @db.Decimal(10, 2)
+  quoteApprovedAt DateTime?
+  consultantNote  String?   @db.Text
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   tenant Tenant @relation(fields: [tenantId], references: [id])
   user   User   @relation(fields: [userId], references: [id])

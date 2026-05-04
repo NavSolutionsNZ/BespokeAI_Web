@@ -28,7 +28,7 @@ interface Stats {
   tenants: any[]; topEntities: { entity: string; _count: { entity: number } }[]
 }
 
-type Tab = 'overview' | 'tenants' | 'users' | 'entities' | 'signups'
+type Tab = 'overview' | 'tenants' | 'users' | 'entities' | 'signups' | 'requirements'
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -288,7 +288,7 @@ export default function AdminPage() {
         </div>
 
         <nav style={{ flex: 1, padding: '12px 10px' }}>
-          {([['overview', 'Overview'], ['tenants', 'Tenants'], ['users', 'Users'], ['entities', 'Entities'], ['signups', 'Signups']] as [Tab, string][]).map(([id, label]) => (
+          {([['overview', 'Overview'], ['tenants', 'Tenants'], ['users', 'Users'], ['entities', 'Entities'], ['signups', 'Signups'], ['requirements', 'Customisations']] as [Tab, string][]).map(([id, label]) => (
             <button key={id} onClick={() => setTab(id)} style={{
               width: '100%', display: 'flex', alignItems: 'center', gap: 10,
               padding: '9px 10px', borderRadius: 8, marginBottom: 2, border: 'none',
@@ -337,7 +337,7 @@ export default function AdminPage() {
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: 'var(--cream)' }}>
         <header style={{ padding: '0 32px', height: 60, flexShrink: 0, background: 'var(--white)', borderBottom: '1px solid var(--fog)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <h1 style={{ fontFamily: 'var(--font-display)', fontWeight: 500, fontSize: 20, color: 'var(--ink)' }}>
-            {tab === 'overview' ? 'Overview' : tab === 'tenants' ? 'Tenants' : tab === 'users' ? 'Users' : tab === 'signups' ? 'Signup Requests' : 'Entities'}
+            {tab === 'overview' ? 'Overview' : tab === 'tenants' ? 'Tenants' : tab === 'users' ? 'Users' : tab === 'signups' ? 'Signup Requests' : tab === 'requirements' ? 'Customisation Requests' : 'Entities'}
           </h1>
           <div style={{ display: 'flex', gap: 10 }}>
             {tab === 'tenants' && (
@@ -721,6 +721,11 @@ export default function AdminPage() {
           </div>
         )}
 
+        {/* ── Requirements tab ──────────────────────────────────────────────── */}
+        {tab === 'requirements' && (
+          <AdminRequirementsTab />
+        )}
+
         {tab === 'entities' && (
             <div style={{ maxWidth: 860 }}>
               {/* Tenant selector */}
@@ -1018,6 +1023,250 @@ function CredentialBanner({ title, label, value, onDismiss }: { title: string; l
           {copied ? 'Copied!' : 'Copy'}
         </button>
       </div>
+    </div>
+  )
+}
+
+// ─── Admin Requirements Tab ────────────────────────────────────────────────────
+
+const STATUS_PIPELINE_ADMIN = ['draft','submitted','in_review','quoted','approved','in_development','complete','rejected']
+const STATUS_COLOR_ADMIN: Record<string, { bg: string; border: string; text: string }> = {
+  draft:          { bg: 'rgba(59,82,73,0.06)',   border: 'rgba(59,82,73,0.15)',   text: '#3B5249' },
+  submitted:      { bg: 'rgba(200,149,42,0.08)', border: 'rgba(200,149,42,0.25)', text: '#C8952A' },
+  in_review:      { bg: 'rgba(200,149,42,0.12)', border: 'rgba(200,149,42,0.35)', text: '#9A6A00' },
+  quoted:         { bg: 'rgba(10,92,70,0.08)',   border: 'rgba(10,92,70,0.2)',    text: '#0A5C46' },
+  approved:       { bg: 'rgba(10,92,70,0.12)',   border: 'rgba(10,92,70,0.3)',    text: '#085040' },
+  in_development: { bg: 'rgba(14,110,86,0.1)',   border: 'rgba(14,110,86,0.25)', text: '#0A5C46' },
+  complete:       { bg: 'rgba(26,146,114,0.1)',  border: 'rgba(26,146,114,0.3)', text: '#0F6E56' },
+  rejected:       { bg: 'rgba(163,45,45,0.06)',  border: 'rgba(163,45,45,0.2)',  text: '#A32D2D' },
+}
+const PRIORITY_LABEL: Record<string, string> = { nice_to_have: 'Nice to have', important: 'Important', critical: 'Critical' }
+const PRIORITY_COLOR: Record<string, string> = { nice_to_have: '#3B5249', important: '#C8952A', critical: '#A32D2D' }
+
+interface AdminReq {
+  id: string; tenantId: string; userId: string; title: string; description: string
+  bcArea: string; priority: string; aiSpec: string | null; status: string
+  quote: string | null; quoteApprovedAt: string | null; consultantNote: string | null
+  createdAt: string; updatedAt: string
+  user: { name: string | null; email: string }
+  tenant: { name: string }
+}
+
+function AdminRequirementsTab() {
+  const [reqs, setReqs]           = useState<AdminReq[]>([])
+  const [loading, setLoading]     = useState(true)
+  const [error, setError]         = useState('')
+  const [selected, setSelected]   = useState<AdminReq | null>(null)
+  const [filterStatus, setFilter] = useState('all')
+  const [actionLoading, setAL]    = useState(false)
+  const [quoteAmt, setQuoteAmt]   = useState('')
+  const [quoteNote, setQuoteNote] = useState('')
+  const [showQF, setShowQF]       = useState(false)
+  const [genSpec, setGenSpec]     = useState(false)
+  const [specErr, setSpecErr]     = useState('')
+
+  async function load() {
+    setLoading(true)
+    try {
+      const res  = await fetch('/api/admin/requirements')
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      setReqs(data.requirements)
+    } catch (e: any) {
+      setError(e.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+  useState(() => { load() })
+
+  async function patch(id: string, body: object) {
+    setAL(true)
+    const res  = await fetch(`/api/requirements/${id}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    })
+    const data = await res.json()
+    if (!res.ok) { alert(data.error); setAL(false); return }
+    const updated = data.requirement
+    setReqs(prev => prev.map(r => r.id === id ? updated : r))
+    setSelected(updated)
+    setAL(false)
+    return updated
+  }
+
+  async function generateSpec(id: string) {
+    setGenSpec(true); setSpecErr('')
+    const res  = await fetch(`/api/requirements/${id}/ai-spec`, { method: 'POST' })
+    const data = await res.json()
+    if (!res.ok) { setSpecErr(data.error); setGenSpec(false); return }
+    const updated = data.requirement
+    setReqs(prev => prev.map(r => r.id === id ? updated : r))
+    setSelected(updated)
+    setGenSpec(false)
+  }
+
+  const filtered = filterStatus === 'all' ? reqs : reqs.filter(r => r.status === filterStatus)
+
+  const statusCounts = reqs.reduce((acc: Record<string, number>, r) => {
+    acc[r.status] = (acc[r.status] ?? 0) + 1; return acc
+  }, {})
+
+  const parsedSpec = (r: AdminReq) => { try { return r.aiSpec ? JSON.parse(r.aiSpec) : null } catch { return null } }
+
+  if (loading) return <p style={{ color: 'var(--slate)', fontFamily: 'var(--font-mono)', fontSize: 12 }}>Loading…</p>
+  if (error)   return <p style={{ color: '#A32D2D' }}>{error}</p>
+
+  return (
+    <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start' }}>
+      {/* List */}
+      <div style={{ flex: '0 0 480px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {/* Stats */}
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 4 }}>
+          {['submitted','in_review','quoted','approved','in_development'].map(s => {
+            const c = STATUS_COLOR_ADMIN[s]
+            return statusCounts[s] ? (
+              <span key={s} style={{ fontFamily: 'var(--font-mono)', fontSize: 9, padding: '3px 10px', borderRadius: 20, background: c.bg, border: `1px solid ${c.border}`, color: c.text, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+                {statusCounts[s]} {s.replace(/_/g, ' ')}
+              </span>
+            ) : null
+          })}
+        </div>
+
+        {/* Filter */}
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          <select value={filterStatus} onChange={e => setFilter(e.target.value)} style={{ ...inputStyle, flex: 1 }}>
+            <option value="all">All statuses ({reqs.length})</option>
+            {STATUS_PIPELINE_ADMIN.map(s => statusCounts[s] ? (
+              <option key={s} value={s}>{s.replace(/_/g, ' ')} ({statusCounts[s]})</option>
+            ) : null)}
+          </select>
+          <button onClick={load} style={{ background: 'transparent', border: '1px solid var(--fog)', borderRadius: 6, padding: '6px 12px', fontSize: 11, color: 'var(--slate)', cursor: 'pointer' }}>↻</button>
+        </div>
+
+        {/* Rows */}
+        {filtered.length === 0 && <p style={{ color: 'var(--slate)', fontSize: 13 }}>No requests found.</p>}
+        {filtered.map(req => {
+          const sc   = STATUS_COLOR_ADMIN[req.status] ?? STATUS_COLOR_ADMIN.draft
+          const isAct = selected?.id === req.id
+          return (
+            <div
+              key={req.id}
+              onClick={() => setSelected(req)}
+              style={{ background: isAct ? 'rgba(10,92,70,0.04)' : 'var(--white)', border: `1px solid ${isAct ? 'rgba(10,92,70,0.2)' : 'var(--fog)'}`, borderRadius: 10, padding: '14px 16px', cursor: 'pointer', transition: 'border-color 0.15s' }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 7 }}>
+                <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 600, color: 'var(--ink)', margin: 0, lineHeight: 1.3, flex: 1 }}>{req.title}</p>
+                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 8, padding: '2px 8px', borderRadius: 6, background: sc.bg, border: `1px solid ${sc.border}`, color: sc.text, textTransform: 'uppercase', letterSpacing: '0.08em', flexShrink: 0 }}>
+                  {req.status.replace(/_/g, ' ')}
+                </span>
+              </div>
+              <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--jade)' }}>{req.tenant.name}</span>
+                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--slate)' }}>{req.bcArea}</span>
+                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: PRIORITY_COLOR[req.priority] ?? 'var(--slate)' }}>{PRIORITY_LABEL[req.priority] ?? req.priority}</span>
+                {req.aiSpec && <span style={{ fontFamily: 'var(--font-mono)', fontSize: 8, color: 'var(--jade)' }}>✦ spec</span>}
+                {req.quote && <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--forest)', marginLeft: 'auto', fontWeight: 600 }}>${parseFloat(req.quote).toLocaleString()}</span>}
+              </div>
+              <p style={{ fontFamily: 'var(--font-mono)', fontSize: 8, color: 'var(--fog)', marginTop: 6 }}>
+                {req.user.name ?? req.user.email} · {new Date(req.createdAt).toLocaleDateString('en-NZ')}
+              </p>
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Detail */}
+      {selected && (() => {
+        const spec = parsedSpec(selected)
+        return (
+          <div style={{ flex: 1, background: 'var(--cream)', borderRadius: 12, padding: '20px 22px', display: 'flex', flexDirection: 'column', gap: 16, position: 'sticky', top: 0, maxHeight: '80vh', overflowY: 'auto' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div>
+                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 19, fontWeight: 500, color: 'var(--ink)', margin: 0, lineHeight: 1.3 }}>{selected.title}</h3>
+                <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--jade)' }}>{selected.tenant.name}</span>
+                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--slate)' }}>·</span>
+                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--slate)' }}>{selected.user.name ?? selected.user.email}</span>
+                </div>
+              </div>
+              <button onClick={() => setSelected(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--slate)', fontSize: 18, flexShrink: 0 }}>✕</button>
+            </div>
+
+            <div style={{ background: 'var(--white)', border: '1px solid var(--fog)', borderRadius: 8, padding: '12px 14px' }}>
+              <p style={{ fontFamily: 'var(--font-mono)', fontSize: 8, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--slate)', marginBottom: 8 }}>Description</p>
+              <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: 'var(--ink)', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{selected.description}</p>
+            </div>
+
+            {/* AI Spec */}
+            {spec ? (
+              <div style={{ background: 'var(--white)', border: '1px solid var(--fog)', borderRadius: 8, padding: '12px 14px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                  <p style={{ fontFamily: 'var(--font-mono)', fontSize: 8, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--slate)', margin: 0 }}>AI Spec · {spec.complexity} · ~{spec.estimatedDays}d</p>
+                  <button onClick={() => generateSpec(selected.id)} disabled={genSpec} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--jade)', fontSize: 10 }}>{genSpec ? '…' : '↺ Regen'}</button>
+                </div>
+                <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'var(--ink)', fontStyle: 'italic', lineHeight: 1.6, marginBottom: 8 }}>{spec.userStory}</p>
+                <ul style={{ margin: 0, paddingLeft: 16 }}>
+                  {spec.acceptanceCriteria.map((c: string, i: number) => (
+                    <li key={i} style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'var(--slate)', lineHeight: 1.6 }}>{c}</li>
+                  ))}
+                </ul>
+                {specErr && <p style={{ color: '#A32D2D', fontSize: 11, marginTop: 8 }}>{specErr}</p>}
+              </div>
+            ) : (
+              <button
+                onClick={() => generateSpec(selected.id)}
+                disabled={genSpec}
+                style={{ background: 'var(--ink)', color: 'var(--cream)', border: 'none', borderRadius: 8, padding: '9px 16px', cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 500 }}
+              >
+                {genSpec ? '✦ Generating…' : '✦ Generate AI Spec'}
+              </button>
+            )}
+
+            {/* Quote info */}
+            {selected.quote && (
+              <div style={{ background: 'rgba(10,92,70,0.05)', border: '1px solid rgba(10,92,70,0.2)', borderRadius: 8, padding: '12px 14px' }}>
+                <p style={{ fontFamily: 'var(--font-mono)', fontSize: 8, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--slate)', marginBottom: 6 }}>Quote</p>
+                <p style={{ fontFamily: 'var(--font-display)', fontSize: 26, fontWeight: 500, color: 'var(--forest)', lineHeight: 1 }}>${parseFloat(selected.quote).toLocaleString()}</p>
+                {selected.consultantNote && <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'var(--slate)', marginTop: 8, lineHeight: 1.6 }}>{selected.consultantNote}</p>}
+                {selected.quoteApprovedAt && <p style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--jade)', marginTop: 6 }}>✓ Approved {new Date(selected.quoteApprovedAt).toLocaleDateString('en-NZ')}</p>}
+              </div>
+            )}
+
+            {/* Admin actions */}
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {selected.status === 'submitted' && (
+                <button onClick={() => patch(selected.id, { status: 'in_review' })} disabled={actionLoading} style={{ ...btnStyle }}>→ In Review</button>
+              )}
+              {selected.status === 'in_review' && (
+                <button onClick={() => setShowQF(true)} disabled={actionLoading} style={{ ...btnStyle }}>$ Add Quote</button>
+              )}
+              {selected.status === 'approved' && (
+                <button onClick={() => patch(selected.id, { status: 'in_development' })} disabled={actionLoading} style={{ ...btnStyle }}>→ Start Dev</button>
+              )}
+              {selected.status === 'in_development' && (
+                <button onClick={() => patch(selected.id, { status: 'complete' })} disabled={actionLoading} style={{ ...btnStyle, background: '#0A5C46' }}>✓ Complete</button>
+              )}
+              {!['complete','rejected'].includes(selected.status) && (
+                <button onClick={() => patch(selected.id, { status: 'rejected' })} disabled={actionLoading} style={{ ...btnStyle, background: 'var(--fog)', color: '#A32D2D' }}>✕ Reject</button>
+              )}
+            </div>
+
+            {/* Quote form */}
+            {showQF && (
+              <div style={{ background: 'var(--white)', border: '1px solid rgba(10,92,70,0.2)', borderRadius: 8, padding: '12px 14px' }}>
+                <p style={{ fontFamily: 'var(--font-mono)', fontSize: 8, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--slate)', marginBottom: 8 }}>Quote Amount (NZD)</p>
+                <input type="number" placeholder="e.g. 2500" value={quoteAmt} onChange={e => setQuoteAmt(e.target.value)} style={{ ...inputStyle, marginBottom: 10 }} onFocus={e => (e.target.style.borderColor = 'var(--forest)')} onBlur={e => (e.target.style.borderColor = 'var(--fog)')} />
+                <p style={{ fontFamily: 'var(--font-mono)', fontSize: 8, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--slate)', marginBottom: 8 }}>Note (optional)</p>
+                <textarea placeholder="e.g. Includes design, development and testing." value={quoteNote} onChange={e => setQuoteNote(e.target.value)} rows={2} style={{ ...inputStyle, resize: 'vertical', marginBottom: 10 }} onFocus={e => (e.target.style.borderColor = 'var(--forest)')} onBlur={e => (e.target.style.borderColor = 'var(--fog)')} />
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button onClick={async () => { await patch(selected.id, { status: 'quoted', quote: quoteAmt, consultantNote: quoteNote || undefined }); setShowQF(false); setQuoteAmt(''); setQuoteNote('') }} disabled={!quoteAmt || actionLoading} style={{ ...btnStyle, opacity: (!quoteAmt || actionLoading) ? 0.6 : 1 }}>Send Quote →</button>
+                  <button onClick={() => setShowQF(false)} style={{ ...btnStyle, background: 'var(--fog)', color: 'var(--ink)' }}>Cancel</button>
+                </div>
+              </div>
+            )}
+          </div>
+        )
+      })()}
     </div>
   )
 }

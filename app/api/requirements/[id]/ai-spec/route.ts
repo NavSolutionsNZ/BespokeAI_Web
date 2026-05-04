@@ -12,29 +12,39 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
 function buildSystemPrompt(bcVersion: string) {
   return `You are a senior Microsoft Dynamics 365 Business Central / Navision (NAV) expert with 20+ years of experience as both a functional consultant and a developer. You have deep hands-on knowledge of:
 - BC/NAV object model: Tables, Pages, Codeunits, Reports, XMLports, Queries, Enums, Interfaces
-- AL language development, extensions, and AppSource publishing
-- Business Central versions from NAV 2009 through BC 14 (on-premise) and BC SaaS (v15–25)
+- AL language development, extensions, AppSource publishing
+- Business Central versions from NAV 2009 through BC SaaS (v15–25) and BC 14 on-premise
 - Standard BC functional areas: Finance, Sales, Purchase, Inventory, Manufacturing, Projects, Service, Warehousing, HR, Fixed Assets
-- Common customisation patterns: approval workflows, custom fields, modified posting routines, integrations, report layouts, number series, dimensions, posting groups
+- Customisation patterns: approval workflows, custom fields, posting routines, integrations, report layouts, dimensions, posting groups, number series
 - NZ/AU localisation: GST, PEPPOL e-invoicing, bank reconciliation, IRD requirements
 
 The customer is running: **${bcVersion}**
 
-Your job is to analyse a plain-English customisation request and produce a professional functional specification — AND to surface your assumptions and ask targeted clarifying questions so the spec can be refined before development begins.
+Your job is to analyse a plain-English customisation request and:
+1. Produce a professional functional specification with exact BC objects
+2. State your assumptions explicitly
+3. Ask targeted clarifying questions for anything that would materially change scope, objects touched, or approach
 
-Be specific to the BC version. Reference the exact standard objects that would be modified or extended. Flag anything that behaves differently across versions. If the version is older NAV, reference C/AL objects; if BC14+ on-premise or SaaS, reference AL extensions.
+CRITICAL: When customer answers are provided (Q&A pairs), you MUST:
+- Incorporate each answer directly into the spec — update bcObjects, acceptanceCriteria, and estimatedDays accordingly
+- Remove or resolve any questions that have been answered
+- Only keep questions that are still genuinely unanswered
+- Reflect the specific detail from answers in the acceptance criteria (e.g. if they said "$5,000 threshold", that exact figure must appear)
 
-Respond ONLY with a valid JSON object — no markdown, no preamble. Use this exact shape:
+Be specific to ${bcVersion}. Reference exact standard objects (Table 36, Page 42, Codeunit 80 etc). For older NAV versions reference C/AL; for BC14+ reference AL extensions.
+
+Respond ONLY with valid JSON — no markdown, no preamble:
 {
   "userStory": "As a [specific role], I want [specific capability] so that [measurable business value].",
   "acceptanceCriteria": [
-    "Given [context], when [action], then [specific measurable outcome].",
+    "Given [context], when [action], then [specific measurable outcome with figures if provided].",
     "..."
   ],
   "bcObjects": [
     "Table 36 Sales Header — add field Approval_Status (Option: Open, Pending, Approved, Rejected)",
-    "Page 42 Sales Order — surface new field, add FactBox showing approval history",
+    "Page 42 Sales Order — surface Approval_Status, add FactBox showing approval history",
     "Codeunit 80 Sales-Post — intercept OnRun, block posting if status not Approved",
+    "Report 205 Order Confirmation — add approval stamp to footer",
     "..."
   ],
   "complexity": "Simple",
@@ -44,26 +54,16 @@ Respond ONLY with a valid JSON object — no markdown, no preamble. Use this exa
     "..."
   ],
   "questions": [
-    "Should approval be required on all sales orders, or only above a certain dollar threshold?",
-    "Who are the approvers — specific named users, or a BC permission group / approval chain?",
+    "Only questions that are still genuinely unanswered after incorporating customer responses",
     "..."
   ],
-  "notes": "Technical notes specific to ${bcVersion}. Include known limitations, version-specific gotchas, or recommended implementation patterns."
+  "notes": "Technical notes specific to ${bcVersion}. Include version-specific gotchas, recommended patterns, migration considerations."
 }
 
-Rules:
-- Generate 3–6 acceptance criteria (Given/When/Then format)
-- Generate 2–5 assumptions (state what you assumed to write the spec)
-- Generate 3–6 clarifying questions — focus on unknowns that would materially change scope, approach, or objects touched
-- If customerAnswers are provided, incorporate them to make the spec more precise and reduce unanswered questions accordingly
-- Complexity: Simple (1–3d), Medium (4–10d), Complex (10+d)`
+Complexity: Simple (1–3d field/validation changes), Medium (4–10d workflows/reports/integrations), Complex (10+d major modules/deep posting/external systems)`
 }
 
-// POST /api/requirements/[id]/ai-spec
-export async function POST(
-  req: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions)
   if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
@@ -74,29 +74,23 @@ export async function POST(
     include: { tenant: { select: { bcInstance: true, name: true } } },
   })
   if (!req_data) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-
-  if (user.role !== 'superadmin' && req_data.tenantId !== user.tenantId) {
+  if (user.role !== 'superadmin' && req_data.tenantId !== user.tenantId)
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-  }
 
-  // Try to get BC version from signup request for this tenant
+  // BC version lookup
   let bcVersion = 'Business Central (version not specified)'
   try {
     const signup = await (prisma as any).signupRequest.findFirst({
-      where:   { companyName: { contains: req_data.tenant.name.split(' ')[0] } },
+      where: { companyName: { contains: req_data.tenant.name.split(' ')[0] } },
       orderBy: { createdAt: 'desc' },
-      select:  { bcVersion: true },
+      select: { bcVersion: true },
     })
     if (signup?.bcVersion) {
       const vMap: Record<string, string> = {
         BC14: 'BC 14 (on-premise, C/AL + AL hybrid)',
         BC15: 'BC 15 (on-premise, AL extensions)',
-        BC20: 'BC 20 (on-premise/SaaS)',
-        BC21: 'BC 21 (on-premise/SaaS)',
-        BC22: 'BC 22 (on-premise/SaaS)',
-        BC23: 'BC 23 (on-premise/SaaS)',
-        BC24: 'BC 24 (on-premise/SaaS)',
-        BC25: 'BC 25 (on-premise/SaaS)',
+        BC20: 'BC 20', BC21: 'BC 21', BC22: 'BC 22',
+        BC23: 'BC 23', BC24: 'BC 24', BC25: 'BC 25 (latest)',
         NAV2018: 'NAV 2018 (C/AL, on-premise)',
         NAV2017: 'NAV 2017 (C/AL, on-premise)',
         NAV2016: 'NAV 2016 (C/AL, on-premise)',
@@ -107,29 +101,64 @@ export async function POST(
     }
   } catch { /* use default */ }
 
-  // Read customerAnswers from request body (answers to AI questions being fed back in)
+  // Read new customerAnswers from request body (structured Q&A JSON or plain text)
   let bodyAnswers = ''
+  let bodyQA: Array<{q: string; a: string}> | null = null
   try {
     const body = await req.json()
     bodyAnswers = body.customerAnswers ?? ''
+    bodyQA     = body.qaStructured ?? null   // [{q, a}] from per-question UI
   } catch { /* no body */ }
 
-  const customerAnswers = bodyAnswers || req_data.customerAnswers || ''
+  // Merge with saved answers
+  const savedAnswers = req_data.customerAnswers ?? ''
+  // Prefer new body answers; fall back to saved
+  const answersToUse = bodyAnswers || savedAnswers
+
+  // Get previous spec's questions for Q&A formatting
+  let prevQuestions: string[] = []
+  try {
+    if (req_data.aiSpec) {
+      const prevSpec = JSON.parse(req_data.aiSpec)
+      prevQuestions = prevSpec.questions ?? []
+    }
+  } catch { /* ignore */ }
+
+  // Format Q&A section for the AI prompt
+  let qaSection = ''
+  if (bodyQA && bodyQA.length > 0) {
+    // Structured per-question answers from UI
+    qaSection = '\n--- Customer responses to clarifying questions ---\n' +
+      bodyQA.map((pair, i) => `Q${i+1}: ${pair.q}\nA${i+1}: ${pair.a}`).join('\n\n')
+  } else if (prevQuestions.length > 0 && answersToUse) {
+    // Pair previous questions with the free-text answer blob
+    const lines = answersToUse.split('\n').filter((l: string) => l.trim())
+    qaSection = '\n--- Customer responses to clarifying questions ---\n' +
+      prevQuestions.map((q, i) => {
+        // Try to find numbered answer (1. or Q1: or just the Nth line)
+        const numbered = lines.find((l: string) => l.match(new RegExp(`^(${i+1}[.):])|(Q${i+1}[.):])`, 'i')))
+        const answer   = numbered ?? lines[i] ?? '(not answered)'
+        const cleaned  = answer.replace(/^[\d]+[.):\s]+/, '').replace(/^Q[\d]+[.):\s]+/i, '').trim()
+        return `Q${i+1}: ${q}\nA${i+1}: ${cleaned}`
+      }).join('\n\n')
+  } else if (answersToUse) {
+    qaSection = `\n--- Additional context from customer ---\n${answersToUse}`
+  }
 
   const prompt = [
     `BC Area: ${req_data.bcArea}`,
     `Priority: ${req_data.priority.replace(/_/g, ' ')}`,
     `Title: ${req_data.title}`,
-    ``,
+    '',
     `Customer description:`,
     req_data.description,
-    customerAnswers ? `\nCustomer's additional context / answers to clarifying questions:\n${customerAnswers}` : '',
-  ].filter(Boolean).join('\n')
+    qaSection,
+  ].filter(s => s !== undefined).join('\n')
 
   let spec: object
   try {
     const completion = await openai.chat.completions.create({
-      model:       'gpt-4o',
+      model: 'gpt-4o',
       temperature: 0.2,
       messages: [
         { role: 'system', content: buildSystemPrompt(bcVersion) },
@@ -144,12 +173,15 @@ export async function POST(
     return NextResponse.json({ error: 'AI generation failed. Please try again.' }, { status: 500 })
   }
 
+  // Persist spec + answers
+  // If structured QA was provided, store as JSON; otherwise store as-is
+  const answersToSave = bodyQA
+    ? JSON.stringify(bodyQA)   // [{q, a}] structure
+    : answersToUse || undefined
+
   const updated = await (prisma as any).requirement.update({
     where: { id: params.id },
-    data: {
-      aiSpec:          JSON.stringify(spec),
-      customerAnswers: customerAnswers || undefined,
-    },
+    data: { aiSpec: JSON.stringify(spec), customerAnswers: answersToSave },
     include: {
       user:   { select: { name: true, email: true } },
       tenant: { select: { name: true } },

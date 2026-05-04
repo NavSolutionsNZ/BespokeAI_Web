@@ -24,12 +24,21 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if ((session!.user as any).id === params.id)
     return NextResponse.json({ error: 'Cannot modify your own account' }, { status: 400 })
 
+  // Prevent modifying other superadmin accounts
+  const target = await prisma.user.findUnique({ where: { id: params.id }, select: { role: true } })
+  if (!target) return NextResponse.json({ error: 'User not found' }, { status: 404 })
+  if (target.role === 'superadmin')
+    return NextResponse.json({ error: 'Cannot modify a superadmin account' }, { status: 403 })
+
   const body = await req.json().catch(() => ({}))
   const { active, role, resetPassword } = body
 
   const updateData: any = {}
-  if (active    !== undefined) updateData.active = active
-  if (role      !== undefined) updateData.role   = role === 'admin' ? 'admin' : 'user'
+  if (active !== undefined) updateData.active = active
+  if (role   !== undefined) {
+    const allowed = ['user', 'tenant_admin']
+    updateData.role = allowed.includes(role) ? role : 'user'
+  }
 
   let tempPassword: string | null = null
   if (resetPassword) {
@@ -54,6 +63,11 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
 
   if ((session!.user as any).id === params.id)
     return NextResponse.json({ error: 'Cannot delete your own account' }, { status: 400 })
+
+  const targetDel = await prisma.user.findUnique({ where: { id: params.id }, select: { role: true } })
+  if (!targetDel) return NextResponse.json({ error: 'User not found' }, { status: 404 })
+  if (targetDel.role === 'superadmin')
+    return NextResponse.json({ error: 'Cannot delete a superadmin account' }, { status: 403 })
 
   try {
     // Delete query logs first (FK constraint)

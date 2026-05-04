@@ -40,6 +40,7 @@ export default function AdminPage() {
   const [tab, setTab]           = useState<Tab>('overview')
   const [signups, setSignups]   = useState<any[]>([])
   const [signupsLoaded, setSignupsLoaded] = useState(false)
+  const [signupsError, setSignupsError]   = useState<string | null>(null)
   const [activating, setActivating] = useState<string | null>(null)
   const [tenants, setTenants]   = useState<Tenant[]>([])
   const [users, setUsers]       = useState<User[]>([])
@@ -95,13 +96,23 @@ export default function AdminPage() {
 
   useEffect(() => {
     if (tab === 'signups' && !signupsLoaded) {
+      setSignupsError(null)
       fetch('/api/admin/signups')
-        .then(r => r.json())
+        .then(async r => {
+          if (!r.ok) {
+            const d = await r.json().catch(() => ({}))
+            throw new Error(d.error ?? `HTTP ${r.status}`)
+          }
+          return r.json()
+        })
         .then(data => {
           setSignups(data.signups ?? [])
           setSignupsLoaded(true)
         })
-        .catch(() => setSignupsLoaded(true))
+        .catch(e => {
+          setSignupsError(e.message)
+          setSignupsLoaded(true)
+        })
     }
   }, [tab, signupsLoaded])
 
@@ -576,27 +587,33 @@ export default function AdminPage() {
                         <td style={tdStyle}><StatusPill active={u.active} /></td>
                         <td style={tdStyle}>
                           <div style={{ display: 'flex', gap: 6 }}>
-                            <button
-                              disabled={userAction === u.id}
-                              onClick={() => toggleUserActive(u.id, u.active)}
-                              style={{ ...ghostBtn, color: u.active ? '#A32D2D' : 'var(--forest)', fontSize: 10 }}
-                            >
-                              {userAction === u.id ? '…' : u.active ? 'Disable' : 'Enable'}
-                            </button>
-                            <button
-                              disabled={userAction === u.id}
-                              onClick={() => resetUserPassword(u.id, u.email)}
-                              style={{ ...ghostBtn, color: 'var(--slate)', fontSize: 10 }}
-                            >
-                              Reset pw
-                            </button>
-                            <button
-                              disabled={userAction === u.id}
-                              onClick={() => setConfirmDelete(u.id)}
-                              style={{ ...ghostBtn, color: '#A32D2D', fontSize: 10 }}
-                            >
-                              Delete
-                            </button>
+                            {u.role === 'superadmin' ? (
+                              <span style={{ fontSize: 10, color: 'var(--slate)', fontStyle: 'italic' }}>🔒 protected</span>
+                            ) : (
+                              <>
+                                <button
+                                  disabled={userAction === u.id}
+                                  onClick={() => toggleUserActive(u.id, u.active)}
+                                  style={{ ...ghostBtn, color: u.active ? '#A32D2D' : 'var(--forest)', fontSize: 10 }}
+                                >
+                                  {userAction === u.id ? '…' : u.active ? 'Disable' : 'Enable'}
+                                </button>
+                                <button
+                                  disabled={userAction === u.id}
+                                  onClick={() => resetUserPassword(u.id, u.email)}
+                                  style={{ ...ghostBtn, color: 'var(--slate)', fontSize: 10 }}
+                                >
+                                  Reset pw
+                                </button>
+                                <button
+                                  disabled={userAction === u.id}
+                                  onClick={() => setConfirmDelete(u.id)}
+                                  style={{ ...ghostBtn, color: '#A32D2D', fontSize: 10 }}
+                                >
+                                  Delete
+                                </button>
+                              </>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -618,7 +635,12 @@ export default function AdminPage() {
                 ↻ Refresh
               </button>
             </div>
-            {signups.length === 0 ? (
+            {signupsError ? (
+              <div style={{ background: '#fff0f0', border: '1px solid #fcc', borderRadius: 8, padding: 16, color: '#A32D2D', fontSize: 13 }}>
+                ⚠ Failed to load signups: <strong>{signupsError}</strong>
+                <button onClick={() => setSignupsLoaded(false)} style={{ marginLeft: 12, background: 'none', border: 'none', color: '#A32D2D', cursor: 'pointer', textDecoration: 'underline', fontSize: 13 }}>Retry</button>
+              </div>
+            ) : signups.length === 0 ? (
               <p style={{ color: 'var(--slate)', fontSize: 14 }}>No signup requests yet.</p>
             ) : (
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>

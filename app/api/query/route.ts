@@ -17,6 +17,9 @@ interface QueryPlan {
   entity: string
   params: string
   reasoning: string
+  dateFrom?: string   // ISO date string e.g. "2025-10-01" — set when question is time-period scoped
+  dateTo?: string     // ISO date string e.g. "2025-12-31 23:59:59"
+  dateField?: string  // field name to filter on e.g. "Posting_Date"
   // Optional second entity to fetch and join with the primary
   secondEntity?: string
   secondParams?: string
@@ -237,6 +240,9 @@ Given a user's natural language question, output ONLY a JSON object with:
   - entity: exact BC OData entity name from the list below
   - params: OData query string (everything after the '?'), e.g. "$top=20&$filter=Balance_LCY gt 0&$orderby=Balance_LCY desc&$select=No,Name,Balance_LCY"
   - reasoning: one-sentence explanation of your choice
+  - dateFrom: (string | null) if the question is scoped to a time period, the START date from DATE_CONTEXT in "YYYY-MM-DD" format, else null
+  - dateTo: (string | null) if the question is scoped to a time period, the END date from DATE_CONTEXT in "YYYY-MM-DD 23:59:59" format, else null
+  - dateField: (string | null) the record field to compare dates against (e.g. "Posting_Date"), else null
   - secondEntity (optional): a second entity to fetch when data must be joined
   - secondParams (optional): OData params for the second entity
   - joinKey (optional): key field on the primary entity (e.g. "No")
@@ -466,6 +472,20 @@ Return JSON:
     } catch {
       // Non-fatal — continue with primary records only
     }
+  }
+
+  // ── Date filter in TypeScript — authoritative, not left to GPT ──────────
+  // If the planner returned a dateFrom/dateTo, filter rawRecords here so GPT
+  // only sees records in the requested period. This makes counts deterministic.
+  if (plan.dateFrom && plan.dateTo && plan.dateField) {
+    const from = new Date(plan.dateFrom).getTime()
+    const to   = new Date(plan.dateTo).getTime()
+    rawRecords = rawRecords.filter(rec => {
+      const val = rec[plan.dateField!]
+      if (!val) return false
+      const t = new Date(val).getTime()
+      return !isNaN(t) && t >= from && t <= to
+    })
   }
 
   // ── Step 3: Answer — Claude produces natural language + structured data ──

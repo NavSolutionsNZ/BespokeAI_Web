@@ -295,20 +295,22 @@ Numbers in rows must be raw numeric — no $ signs or commas.`,
     )
   }
 
-  // ── Persist to QueryLog (non-blocking) ───────────────────────────────────
+  // ── Persist to QueryLog ───────────────────────────────────────────────────
 
-  prisma.queryLog.create({
-    data: {
-      tenantId:    tenant.tenantId,
-      userId:      session.user.id,
-      question,
-      answer:      payload.answer,
-      displayHint: payload.displayHint,
-      data:        payload.data ?? undefined,
-      entity:      plan.entity,
-      recordCount: rawRecords.length,
-    },
-  }).catch(() => { /* non-fatal */ })
+  try {
+    await prisma.queryLog.create({
+      data: {
+        tenantId:    tenant.tenantId,
+        userId:      (session.user as any).id,
+        question,
+        answer:      payload.answer,
+        displayHint: payload.displayHint,
+        data:        payload.data ?? undefined,
+        entity:      plan.entity,
+        recordCount: rawRecords.length,
+      },
+    })
+  } catch { /* non-fatal — don't block the response */ }
 
   // ── Return ───────────────────────────────────────────────────────────────
 

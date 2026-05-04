@@ -153,7 +153,9 @@ export default function DashboardPage() {
         errorDetail: data.detail, errorUrl: data.odataUrl,
       }))
       if (!data.error) {
-        fetch('/api/history').then(r => r.json()).then(d => setQueryLogs(d.logs ?? [])).catch(() => {})
+        setTimeout(() => {
+          fetch('/api/history').then(r => r.json()).then(d => setQueryLogs(d.logs ?? [])).catch(() => {})
+        }, 1000)
       }
     } catch {
       setHistory(prev => prev.map(item => item.id !== id ? item : {

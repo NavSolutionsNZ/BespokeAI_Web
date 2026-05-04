@@ -30,11 +30,12 @@ export default withAuth(
     callbacks: {
       authorized({ token, req }) {
         const pathname = req.nextUrl.pathname
-        // Demo + signup routes are public — no auth required
+        // Public routes — no auth required
         if (
-          pathname.startsWith('/demo') ||
-          pathname.startsWith('/api/demo') ||
-          pathname.startsWith('/signup')
+          pathname.startsWith('/demo')       ||
+          pathname.startsWith('/api/demo')   ||
+          pathname.startsWith('/signup')     ||
+          pathname.startsWith('/api/signup')
         ) return true
         return !!token?.tenantId
       },
@@ -53,5 +54,7 @@ export const config = {
     '/api/admin/:path*',
     '/api/settings/:path*',
     '/api/demo/:path*',
+    '/api/signup/:path*',
+    '/api/signup',
   ],
 }

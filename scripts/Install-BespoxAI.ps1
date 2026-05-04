@@ -238,10 +238,13 @@ while ($Listener.IsListening) {
     try {
         $rawUrl = $req.RawUrl
 
-        # Health check
+        # Health check — requires valid API key so dashboard shows red on config mismatch
         if ($rawUrl -eq '/health' -or $rawUrl -eq '/health/') {
-            $body = [System.Text.Encoding]::UTF8.GetBytes('{"status":"ok","version":"2.1"}')
-            $res.StatusCode = 200
+            $incomingKey = $req.Headers['X-BespoxAI-Key']
+            $statusCode  = if ($incomingKey -eq $ApiKey) { 200 } else { 401 }
+            $statusMsg   = if ($incomingKey -eq $ApiKey) { 'ok' } else { 'unauthorized' }
+            $body = [System.Text.Encoding]::UTF8.GetBytes("{`"status`":`"$statusMsg`",`"version`":`"2.1`"}")
+            $res.StatusCode = $statusCode
             $res.ContentType = 'application/json'
             $res.ContentLength64 = $body.Length
             $res.OutputStream.Write($body, 0, $body.Length)

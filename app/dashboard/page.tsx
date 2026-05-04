@@ -105,7 +105,12 @@ export default function DashboardPage() {
   const [history, setHistory]     = useState<QueryResult[]>([])
   const [showMeta, setShowMeta]   = useState<string | null>(null)
   const [sidebarOpen, setSidebarOpen] = useState(true)
-  const [queryLogs, setQueryLogs] = useState<QueryLogItem[]>([])
+  const [queryLogs, setQueryLogs]         = useState<QueryLogItem[]>([])
+  const [showChangePw, setShowChangePw]   = useState(false)
+  const [pwForm, setPwForm]               = useState({ current: '', next: '', confirm: '' })
+  const [pwSaving, setPwSaving]           = useState(false)
+  const [pwError, setPwError]             = useState('')
+  const [pwSuccess, setPwSuccess]         = useState(false)
 
   // Load query history on mount
   useEffect(() => {
@@ -130,6 +135,22 @@ export default function DashboardPage() {
   const tenantName = user?.tenantName ?? 'Your Company'
 
   // ── Query ───────────────────────────────────────────────────────────────────
+
+  async function changePassword() {
+    if (pwForm.next !== pwForm.confirm) { setPwError('New passwords do not match'); return }
+    if (pwForm.next.length < 8) { setPwError('Password must be at least 8 characters'); return }
+    setPwSaving(true); setPwError(''); setPwSuccess(false)
+    const res  = await fetch('/api/user/password', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ currentPassword: pwForm.current, newPassword: pwForm.next }),
+    })
+    const data = await res.json()
+    if (!res.ok) { setPwError(data.error); setPwSaving(false); return }
+    setPwSuccess(true)
+    setPwForm({ current: '', next: '', confirm: '' })
+    setPwSaving(false)
+    setTimeout(() => { setPwSuccess(false); setShowChangePw(false) }, 1500)
+  }
 
   async function runQuery() {
     const q = question.trim()
@@ -361,6 +382,19 @@ export default function DashboardPage() {
               {user?.role ?? 'User'}
             </div>
           </div>
+          <button
+            onClick={() => setShowChangePw(true)}
+            title="Change password"
+            style={{
+              background: 'none', border: 'none', cursor: 'pointer',
+              color: 'rgba(214,217,212,0.3)', fontSize: 13, padding: 4, lineHeight: 1,
+              transition: 'color 0.15s', flexShrink: 0,
+            }}
+            onMouseEnter={e => (e.currentTarget.style.color = 'var(--fog)')}
+            onMouseLeave={e => (e.currentTarget.style.color = 'rgba(214,217,212,0.3)')}
+          >
+            🔑
+          </button>
           <button
             onClick={() => signOut({ callbackUrl: '/login' })}
             title="Sign out"
@@ -671,6 +705,51 @@ export default function DashboardPage() {
           </div>
         )}
       </div>
+
+      {/* Change password modal */}
+      {showChangePw && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(4,14,9,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: 'var(--white)', borderRadius: 16, padding: '28px 32px', width: 400, maxWidth: '90vw', boxShadow: '0 8px 40px rgba(4,14,9,0.2)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 500, color: 'var(--ink)', margin: 0 }}>Change password</h2>
+              <button onClick={() => { setShowChangePw(false); setPwError(''); setPwForm({ current: '', next: '', confirm: '' }) }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--slate)', fontSize: 20 }}>✕</button>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {[
+                { label: 'Current password', key: 'current' },
+                { label: 'New password',     key: 'next' },
+                { label: 'Confirm new password', key: 'confirm' },
+              ].map(({ label, key }) => (
+                <div key={key}>
+                  <label style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--slate)', display: 'block', marginBottom: 6 }}>{label}</label>
+                  <input
+                    type="password"
+                    value={pwForm[key as keyof typeof pwForm]}
+                    onChange={e => setPwForm(f => ({ ...f, [key]: e.target.value }))}
+                    style={{ width: '100%', background: 'var(--cream)', border: '1px solid var(--fog)', borderRadius: 8, padding: '9px 12px', fontSize: 13, fontFamily: 'var(--font-body)', color: 'var(--ink)', outline: 'none', boxSizing: 'border-box' }}
+                    onFocus={e => (e.target.style.borderColor = 'var(--forest)')}
+                    onBlur={e => (e.target.style.borderColor = 'var(--fog)')}
+                  />
+                </div>
+              ))}
+            </div>
+            {pwError   && <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: '#A32D2D', marginTop: 12 }}>{pwError}</p>}
+            {pwSuccess && <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: 'var(--forest)', marginTop: 12 }}>Password updated successfully.</p>}
+            <div style={{ display: 'flex', gap: 10, marginTop: 24 }}>
+              <button
+                onClick={changePassword}
+                disabled={pwSaving || !pwForm.current || !pwForm.next || !pwForm.confirm}
+                style={{ background: 'var(--forest)', color: 'var(--white)', border: 'none', borderRadius: 8, padding: '9px 20px', cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500, opacity: (pwSaving || !pwForm.current || !pwForm.next || !pwForm.confirm) ? 0.6 : 1 }}
+              >
+                {pwSaving ? 'Saving…' : 'Update password'}
+              </button>
+              <button onClick={() => { setShowChangePw(false); setPwError(''); setPwForm({ current: '', next: '', confirm: '' }) }} style={{ background: 'var(--fog)', color: 'var(--ink)', border: 'none', borderRadius: 8, padding: '9px 16px', cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: 13 }}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <style>{`
         @keyframes pulse {

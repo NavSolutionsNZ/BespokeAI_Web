@@ -7,6 +7,32 @@ import { useSession, signOut } from 'next-auth/react'
 import type { DisplayHint, StructuredData } from '@/app/api/query/route'
 import DataVisualizer from '@/components/DataVisualizer'
 
+// ─── PDF helpers ──────────────────────────────────────────────────────────────
+
+function buildDataHTML(hint: string | undefined, data: StructuredData | null | undefined): string {
+  if (!hint || hint === 'narrative' || !data) return ''
+
+  if (hint === 'kpi' && data.kpis?.length) {
+    const cards = data.kpis.map((kpi, i) => {
+      const primary = i === 0 ? ' kpi-primary' : ''
+      const sub = kpi.subtext ? '<div class="kpi-sub">' + kpi.subtext + '</div>' : ''
+      return '<div class="kpi-card' + primary + '"><div class="kpi-label">' + kpi.label + '</div><div class="kpi-value">' + kpi.value + '</div>' + sub + '</div>'
+    }).join('')
+    return '<div class="kpi-grid">' + cards + '</div>'
+  }
+
+  if ((hint === 'table' || hint === 'bar_chart' || hint === 'line_chart') && data.columns?.length && data.rows?.length) {
+    const header = data.columns.map(c => '<th>' + c + '</th>').join('')
+    const body = data.rows.map(r => '<tr>' + r.map(cell => '<td>' + (cell ?? '') + '</td>').join('') + '</tr>').join('')
+    const note = (hint === 'bar_chart' || hint === 'line_chart')
+      ? '<p class="chart-note">&#9650; ' + (hint === 'bar_chart' ? 'Bar' : 'Line') + ' chart data</p>'
+      : ''
+    return note + '<table><thead><tr>' + header + '</tr></thead><tbody>' + body + '</tbody></table>'
+  }
+
+  return ''
+}
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface HealthStatus {
@@ -756,36 +782,6 @@ export default function DashboardPage() {
             <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
               <button
                 onClick={() => {
-                  // ── Build static HTML for any structured data ──────────────
-                  function buildDataHTML(hint: string | undefined, data: StructuredData | null | undefined): string {
-                    if (!hint || hint === 'narrative' || !data) return ''
-
-                    if (hint === 'kpi' && data.kpis?.length) {
-                      const cards = data.kpis.map((kpi, i) =>
-                        `<div class="kpi-card${i === 0 ? ' kpi-primary' : ''}">
-                          <div class="kpi-label">${kpi.label}</div>
-                          <div class="kpi-value">${kpi.value}</div>
-                          ${kpi.subtext ? `<div class="kpi-sub">${kpi.subtext}</div>` : ''}
-                        </div>`
-                      ).join('')
-                      return `<div class="kpi-grid">${cards}</div>`
-                    }
-
-                    if ((hint === 'table' || hint === 'bar_chart' || hint === 'line_chart') &&
-                        data.columns?.length && data.rows?.length) {
-                      const header = data.columns.map(c => `<th>${c}</th>`).join('')
-                      const body = data.rows.map(r =>
-                        `<tr>${r.map(cell => `<td>${cell ?? ''}</td>`).join('')}</tr>`
-                      ).join('')
-                      const note = (hint === 'bar_chart' || hint === 'line_chart')
-                        ? `<p class="chart-note">▲ ${hint === 'bar_chart' ? 'Bar' : 'Line'} chart data</p>`
-                        : ''
-                      return `${note}<table><thead><tr>${header}</tr></thead><tbody>${body}</tbody></table>`
-                    }
-
-                    return ''
-                  }
-
                   const dataHTML = buildDataHTML(exportItem.displayHint, exportItem.data)
 
                   const w = window.open('', '_blank')!

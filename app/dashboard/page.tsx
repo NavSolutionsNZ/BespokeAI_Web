@@ -2,7 +2,7 @@
 
 export const dynamic = 'force-dynamic'
 
-import { useState, useRef, useEffect, KeyboardEvent } from 'react'
+import { useState, useRef, useEffect, KeyboardEvent, Suspense } from 'react'
 import { useSession, signOut } from 'next-auth/react'
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import type { DisplayHint, StructuredData } from '@/app/api/query/route'
@@ -128,6 +128,14 @@ function useHealthStatus(): HealthStatus {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
+  return (
+    <Suspense fallback={null}>
+      <DashboardInner />
+    </Suspense>
+  )
+}
+
+function DashboardInner() {
   const { data: session } = useSession()
   const router     = useRouter()
   const pathname   = usePathname()

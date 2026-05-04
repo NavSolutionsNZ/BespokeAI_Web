@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
-import Anthropic from '@anthropic-ai/sdk'
+import OpenAI from 'openai'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { getTenantById, buildODataUrl } from '@/lib/tenants'
 import { getEntitiesSummary } from '@/lib/bc-entities'
 
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -57,11 +57,15 @@ export async function POST(req: NextRequest) {
 
   let plan: QueryPlan
   try {
-    const planRes = await anthropic.messages.create({
-      model: 'claude-opus-4-5',
+    const planRes = await openai.chat.completions.create({
+      model: 'gpt-4o',
       max_tokens: 600,
-      system: `You are a Microsoft Business Central OData query planner.
-Given a user's natural language question, output ONLY a JSON object (no markdown, no explanation) with:
+      response_format: { type: 'json_object' },
+      messages: [
+        {
+          role: 'system',
+          content: `You are a Microsoft Business Central OData query planner.
+Given a user's natural language question, output ONLY a JSON object with:
   - entity: exact BC OData entity name from the list below
   - params: OData query string (everything after the '?'), e.g. "$top=20&$filter=Balance_LCY gt 0&$orderby=Balance_LCY desc&$select=No,Name,Balance_LCY"
   - reasoning: one-sentence explanation of your choice
@@ -78,16 +82,13 @@ OData rules:
 - Boolean: Open eq true
 - $orderby for sorting: fieldName desc
 - Combine with 'and' / 'or'
-- OData field names use underscores (e.g. Sell_to_Customer_No, not SellToCustomerNo)
-
-Output ONLY valid JSON. No backticks, no markdown.`,
-      messages: [{ role: 'user', content: question }],
+- OData field names use underscores (e.g. Sell_to_Customer_No, not SellToCustomerNo)`,
+        },
+        { role: 'user', content: question },
+      ],
     })
 
-    const planText =
-      planRes.content[0].type === 'text' ? planRes.content[0].text.trim() : ''
-
-    // Strip accidental markdown fences if present
+    const planText = planRes.choices[0].message.content ?? ''
     const clean = planText.replace(/^```[a-z]*\n?/, '').replace(/```$/, '').trim()
     plan = JSON.parse(clean)
   } catch (err: any) {
@@ -143,14 +144,16 @@ Output ONLY valid JSON. No backticks, no markdown.`,
 
   let payload: AnswerPayload
   try {
-    const answerRes = await anthropic.messages.create({
-      model: 'claude-opus-4-5',
+    const answerRes = await openai.chat.completions.create({
+      model: 'gpt-4o',
       max_tokens: 2000,
-      system: `You are a senior financial data analyst presenting Business Central data to a CFO at ${tenant.name}.
+      response_format: { type: 'json_object' },
+      messages: [
+        {
+          role: 'system',
+          content: `You are a senior financial data analyst presenting Business Central data to a CFO at ${tenant.name}.
 
-Your response MUST be a single valid JSON object. No markdown, no explanation outside the JSON.
-
-JSON shape:
+Your response MUST be a single valid JSON object with this exact shape:
 {
   "answer": "...",
   "displayHint": "...",
@@ -170,29 +173,19 @@ ${truncated ? `- Data was truncated to 80 of ${rawRecords.length} records` : ''}
 
 ─── displayHint ──────────────────────────────────────────────────────────────
 Choose exactly one:
-- "kpi"        → single headline figure or a small set of KPIs (e.g. total AR balance, count of overdue invoices)
-- "bar_chart"  → ranking / comparison across named categories (e.g. top customers by balance)
-- "line_chart" → trend over time (e.g. monthly sales, daily entries)
-- "table"      → multi-field detail rows where columns matter (e.g. overdue invoices with customer, amount, due date)
-- "narrative"  → data doesn't lend itself to a visual (explanatory, mixed, or very few points)
+- "kpi"        → single headline figure or a small set of KPIs
+- "bar_chart"  → ranking / comparison across named categories
+- "line_chart" → trend over time
+- "table"      → multi-field detail rows where columns matter
+- "narrative"  → data doesn't lend itself to a visual
 
 ─── data ─────────────────────────────────────────────────────────────────────
-Populate based on displayHint. Use null for "narrative".
-
-kpi:
-  { "kpis": [{ "label": "Total AR", "value": "$1,234,567.00", "subtext": "across 42 customers" }] }
-
-bar_chart / table:
-  { "columns": ["Customer", "Balance ($)"], "rows": [["Acme Ltd", 142000.00], ["Beta Co", 98500.00]] }
-  - columns: short human-readable labels
-  - rows: each row matches columns order; numbers must be raw numeric (no $ or commas)
-
-line_chart:
-  { "columns": ["Month", "Amount ($)"], "rows": [["Jan 2024", 54000], ["Feb 2024", 61200]] }
-  - First column is always the x-axis label
-
-Output ONLY the JSON object. No backticks.`,
-      messages: [
+kpi:    { "kpis": [{ "label": "Total AR", "value": "$1,234,567.00", "subtext": "across 42 customers" }] }
+table / bar_chart: { "columns": ["Customer", "Balance ($)"], "rows": [["Acme Ltd", 142000.00]] }
+line_chart: { "columns": ["Month", "Amount ($)"], "rows": [["Jan 2024", 54000]] }
+narrative: null
+Numbers in rows must be raw numeric — no $ signs or commas.`,
+        },
         {
           role: 'user',
           content: `Question: ${question}\n\nBC data (${recordsForClaude.length} records from ${plan.entity}):\n${JSON.stringify(recordsForClaude, null, 2)}`,
@@ -200,11 +193,11 @@ Output ONLY the JSON object. No backticks.`,
       ],
     })
 
-    const raw = answerRes.content[0].type === 'text' ? answerRes.content[0].text.trim() : ''
+    const raw = answerRes.choices[0].message.content ?? ''
     const clean = raw.replace(/^```[a-z]*\n?/, '').replace(/```$/, '').trim()
     payload = JSON.parse(clean)
 
-    // Defensive fallback — if Claude drops fields
+    // Defensive fallbacks
     payload.answer      = payload.answer      ?? 'No answer generated.'
     payload.displayHint = payload.displayHint ?? 'narrative'
     payload.data        = payload.data        ?? null

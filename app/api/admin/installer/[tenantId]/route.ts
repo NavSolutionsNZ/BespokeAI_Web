@@ -5,6 +5,7 @@ import { prisma } from '@/lib/db'
 import { getTunnelToken } from '@/lib/cloudflare'
 import { readFileSync } from 'fs'
 import { join } from 'path'
+import JSZip from 'jszip'
 
 export const dynamic = 'force-dynamic'
 
@@ -118,11 +119,16 @@ pause
 exit /b %_exit%
 `
 
-  return new NextResponse(bat, {
+  // Wrap the .bat in a .zip so Chrome doesn't flag it as dangerous
+  const zip = new JSZip()
+  zip.file(`Install-BespoxAI-${tenantSlug}.bat`, bat)
+  const zipBuffer = await zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' })
+
+  return new NextResponse(zipBuffer as unknown as BodyInit, {
     status: 200,
     headers: {
-      'Content-Type':        'application/octet-stream',
-      'Content-Disposition': `attachment; filename="Install-BespoxAI-${tenantSlug}.bat"`,
+      'Content-Type':        'application/zip',
+      'Content-Disposition': `attachment; filename="Install-BespoxAI-${tenantSlug}.zip"`,
     },
   })
 }

@@ -13,7 +13,7 @@ export const dynamic = 'force-dynamic'
 //   - uncatalogued:  entities published in BC but NOT in our catalogue
 export async function GET(_req: NextRequest, { params }: { params: { tenantId: string } }) {
   const session = await getServerSession(authOptions)
-  if (!session?.user || (session.user as any).role !== 'admin')
+  if (!session?.user || (session.user as any).role !== 'superadmin')
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const tenant = await prisma.tenant.findUnique({ where: { id: params.tenantId } })

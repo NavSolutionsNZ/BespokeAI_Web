@@ -328,7 +328,20 @@ export default function SettingsPage() {
           {tab === 'entities' && <>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28 }}>
               <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 28, fontWeight: 400, color: 'var(--ink)', margin: 0 }}>Data Entities</h1>
-              <Btn onClick={saveEntities} disabled={entitySaving}>{entitySaving ? 'Saving…' : 'Save Changes'}</Btn>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button onClick={async () => {
+                  setEntitySaving(true)
+                  const r = await fetch('/api/settings/discover', { method: 'POST' })
+                  const d = await r.json()
+                  if (r.ok) { setEntityConfig(d.entityConfig ?? {}); toast$(`Discovered ${d.discovered} entities, ${d.enabled} enabled`) }
+                  else toast$(d.error ?? 'Discovery failed', false)
+                  setEntitySaving(false)
+                }} disabled={entitySaving}
+                  style={{ background: 'none', color: 'var(--forest)', border: '1px solid var(--forest)', borderRadius: 8, padding: '8px 16px', cursor: entitySaving ? 'default' : 'pointer', fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500, opacity: entitySaving ? 0.6 : 1 }}>
+                  {entitySaving ? 'Working…' : '⟳ Discover from BC'}
+                </button>
+                <Btn onClick={saveEntities} disabled={entitySaving}>{entitySaving ? 'Saving…' : 'Save Changes'}</Btn>
+              </div>
             </div>
             <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'var(--slate)', marginBottom: 20, lineHeight: 1.65 }}>Enable or disable which Business Central entities the AI assistant can query. Disabled entities are excluded from the planner.</p>
             <div style={{ background: 'var(--white)', borderRadius: 14, border: '1px solid var(--fog)', overflow: 'hidden' }}>

@@ -27,7 +27,7 @@ export const authOptions: NextAuthOptions = {
           include: { tenant: { select: { id: true, name: true, active: true } } },
         })
 
-        if (!user || !user.tenant.active) return null
+        if (!user || !user.tenant.active || !user.active) return null
 
         const valid = await bcrypt.compare(credentials.password, user.password)
         if (!valid) return null

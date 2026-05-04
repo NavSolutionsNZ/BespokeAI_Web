@@ -16,7 +16,7 @@ interface Tenant {
 }
 
 interface User {
-  id: string; email: string; name: string; role: string
+  id: string; email: string; name: string; role: string; active: boolean
   tenantId: string; createdAt: string
   tenant: { name: string; active: boolean }
   _count: { queryLogs: number }
@@ -62,6 +62,9 @@ export default function AdminPage() {
   const [discovering, setDiscovering]             = useState(false)
   const [discoveryResult, setDiscoveryResult]     = useState<any>(null)
   const [togglingEntity, setTogglingEntity]       = useState('')
+  const [userAction, setUserAction]               = useState('')  // userId being actioned
+  const [resetResult, setResetResult]             = useState<{ email: string; tempPassword: string } | null>(null)
+  const [confirmDelete, setConfirmDelete]         = useState<string | null>(null)
 
   // Installer download form
   const [installerTenantId, setInstallerTenantId] = useState<string | null>(null)
@@ -131,6 +134,35 @@ export default function AdminPage() {
     setInstallerLoading(false)
   }
 
+  async function toggleUserActive(userId: string, active: boolean) {
+    setUserAction(userId)
+    const res = await fetch(`/api/admin/users/${userId}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ active: !active }),
+    })
+    if (res.ok) setUsers(prev => prev.map(u => u.id === userId ? { ...u, active: !active } : u))
+    setUserAction('')
+  }
+
+  async function resetUserPassword(userId: string, email: string) {
+    setUserAction(userId)
+    const res = await fetch(`/api/admin/users/${userId}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ resetPassword: true }),
+    })
+    const data = await res.json()
+    if (res.ok) setResetResult({ email, tempPassword: data.tempPassword })
+    setUserAction('')
+  }
+
+  async function deleteUser(userId: string) {
+    setUserAction(userId)
+    const res = await fetch(`/api/admin/users/${userId}`, { method: 'DELETE' })
+    if (res.ok) setUsers(prev => prev.filter(u => u.id !== userId))
+    setConfirmDelete(null)
+    setUserAction('')
+  }
+
   async function discoverEntities(tenantId: string) {
     setDiscovering(true); setDiscoveryResult(null); setDiscoverTenantId(tenantId)
     const res  = await fetch(`/api/admin/discover/${tenantId}`)
@@ -186,7 +218,7 @@ export default function AdminPage() {
     const data = await res.json()
     if (!res.ok) { setError(data.error); setSaving(false); return }
     const tenant = tenants.find(t => t.id === userForm.tenantId)
-    setUsers(prev => [...prev, { ...data.user, tenant: { name: tenant?.name ?? '', active: true }, _count: { queryLogs: 0 } }])
+    setUsers(prev => [...prev, { ...data.user, active: true, tenant: { name: tenant?.name ?? '', active: true }, _count: { queryLogs: 0 } }])
     setNewUserResult({ email: data.user.email, tempPassword: data.tempPassword })
     setUserForm({ email: '', name: '', role: 'user', tenantId: '' })
     setShowNewUser(false)
@@ -479,7 +511,7 @@ export default function AdminPage() {
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                   <thead>
                     <tr style={{ borderBottom: '1px solid var(--fog)' }}>
-                      {['User', 'Email', 'Tenant', 'Role', 'Queries', 'Joined'].map(h => (
+                      {['User', 'Email', 'Tenant', 'Role', 'Queries', 'Joined', 'Status', ''].map(h => (
                         <th key={h} style={thStyle}>{h}</th>
                       ))}
                     </tr>
@@ -498,6 +530,32 @@ export default function AdminPage() {
                         <td style={{ ...tdStyle, textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 11 }}>{u._count.queryLogs}</td>
                         <td style={{ ...tdStyle, fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--slate)' }}>
                           {new Date(u.createdAt).toLocaleDateString([], { dateStyle: 'short' })}
+                        </td>
+                        <td style={tdStyle}><StatusPill active={u.active} /></td>
+                        <td style={tdStyle}>
+                          <div style={{ display: 'flex', gap: 6 }}>
+                            <button
+                              disabled={userAction === u.id}
+                              onClick={() => toggleUserActive(u.id, u.active)}
+                              style={{ ...ghostBtn, color: u.active ? '#A32D2D' : 'var(--forest)', fontSize: 10 }}
+                            >
+                              {userAction === u.id ? '…' : u.active ? 'Disable' : 'Enable'}
+                            </button>
+                            <button
+                              disabled={userAction === u.id}
+                              onClick={() => resetUserPassword(u.id, u.email)}
+                              style={{ ...ghostBtn, color: 'var(--slate)', fontSize: 10 }}
+                            >
+                              Reset pw
+                            </button>
+                            <button
+                              disabled={userAction === u.id}
+                              onClick={() => setConfirmDelete(u.id)}
+                              style={{ ...ghostBtn, color: '#A32D2D', fontSize: 10 }}
+                            >
+                              Delete
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -614,6 +672,36 @@ export default function AdminPage() {
 
         </div>
       </div>
+      {/* Reset password result */}
+      {resetResult && (
+        <CredentialBanner
+          title={`Password reset for ${resetResult.email}`}
+          label="New temporary password — share with the user:"
+          value={resetResult.tempPassword}
+          onDismiss={() => setResetResult(null)}
+        />
+      )}
+
+      {/* Delete confirm modal */}
+      {confirmDelete && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(4,14,9,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: 'var(--white)', borderRadius: 16, padding: '28px 32px', width: 400, boxShadow: '0 8px 40px rgba(4,14,9,0.2)' }}>
+            <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 500, color: 'var(--ink)', margin: '0 0 12px' }}>Delete user?</h2>
+            <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'var(--slate)', marginBottom: 24, lineHeight: 1.6 }}>
+              This will permanently delete the user and all their query history. This cannot be undone.
+            </p>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={() => deleteUser(confirmDelete)} style={{ background: '#A32D2D', color: 'var(--white)', border: 'none', borderRadius: 8, padding: '8px 16px', cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 500 }}>
+                Delete permanently
+              </button>
+              <button onClick={() => setConfirmDelete(null)} style={{ background: 'var(--fog)', color: 'var(--ink)', border: 'none', borderRadius: 8, padding: '8px 16px', cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: 13 }}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Installer download modal */}
       {installerTenantId && (
         <InstallerModal

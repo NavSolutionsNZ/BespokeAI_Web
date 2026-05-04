@@ -11,6 +11,7 @@ import { useRouter } from 'next/navigation'
 interface Tenant {
   id: string; name: string; tunnelSubdomain: string
   bcInstance: string; bcCompany: string; active: boolean
+  tier?: string; trialEndsAt?: string | null
   createdAt: string
   _count: { users: number; queryLogs: number }
 }

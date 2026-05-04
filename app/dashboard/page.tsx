@@ -5,6 +5,7 @@ export const dynamic = 'force-dynamic'
 import { useState, useRef, useEffect, KeyboardEvent } from 'react'
 import { useSession, signOut } from 'next-auth/react'
 import type { DisplayHint, StructuredData } from '@/app/api/query/route'
+import DataVisualizer from '@/components/DataVisualizer'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -444,9 +445,16 @@ export default function DashboardPage() {
                           {/* Data pulse decoration */}
                           <DataPulseBar />
 
-                          <p style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: 'var(--ink)', lineHeight: 1.75, whiteSpace: 'pre-wrap', marginBottom: item.meta ? 14 : 0 }}>
+                          <p style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: 'var(--ink)', lineHeight: 1.75, whiteSpace: 'pre-wrap', marginBottom: item.data ? 0 : item.meta ? 14 : 0 }}>
                             {item.answer}
                           </p>
+
+                          {/* Chart / table / KPI visualizer */}
+                          {item.displayHint && item.displayHint !== 'narrative' && item.data && (
+                            <div style={{ marginBottom: item.meta ? 18 : 0 }}>
+                              <DataVisualizer displayHint={item.displayHint} data={item.data} />
+                            </div>
+                          )}
 
                           {/* Meta footer */}
                           {item.meta && (

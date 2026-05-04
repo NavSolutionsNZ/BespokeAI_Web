@@ -25,7 +25,10 @@ export default withAuth(
   {
     pages: { signIn: '/login' },
     callbacks: {
-      authorized({ token }) {
+      authorized({ token, req }) {
+        const pathname = req.nextUrl.pathname
+        // Demo routes are public — no auth required
+        if (pathname.startsWith('/demo') || pathname.startsWith('/api/demo')) return true
         return !!token?.tenantId
       },
     },
@@ -37,8 +40,10 @@ export const config = {
     '/dashboard/:path*',
     '/admin/:path*',
     '/settings/:path*',
+    '/demo/:path*',
     '/api/query',
     '/api/admin/:path*',
     '/api/settings/:path*',
+    '/api/demo/:path*',
   ],
 }

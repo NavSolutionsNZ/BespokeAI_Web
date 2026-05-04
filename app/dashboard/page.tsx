@@ -775,7 +775,7 @@ export default function DashboardPage() {
             </div>
 
             {/* Input bar */}
-            <div style={{
+            {!tierBlocked && <div style={{
               background: 'var(--white)', borderTop: '1px solid var(--fog)',
               padding: '16px 28px 20px',
             }}>
@@ -818,7 +818,6 @@ export default function DashboardPage() {
                   →
                 </button>
               </div>
-            </div>
             </div>}
 
           </div>

@@ -24,12 +24,28 @@ export const BC_ENTITIES = {
       'Requested_Delivery_Date',
     ],
   },
+  SalesOrderSalesLines: {
+    description: 'Sales order lines — individual line items on sales orders',
+    keyField: 'Document_No',
+    usefulFields: [
+      'Document_No', 'Line_No', 'Type', 'No', 'Description',
+      'Quantity', 'Unit_Price', 'Line_Amount',
+    ],
+  },
   SalesInvoice: {
     description: 'Posted sales invoices',
     keyField: 'No',
     usefulFields: [
       'No', 'Sell_to_Customer_No', 'Sell_to_Customer_Name',
       'Posting_Date', 'Due_Date', 'Amount', 'Amount_Including_VAT',
+    ],
+  },
+  SalesInvoiceSalesLines: {
+    description: 'Posted sales invoice lines — individual line items on sales invoices',
+    keyField: 'Document_No',
+    usefulFields: [
+      'Document_No', 'Line_No', 'Type', 'No', 'Description',
+      'Quantity', 'Unit_Price', 'Line_Amount',
     ],
   },
   SalesCrMemo: {
@@ -40,12 +56,12 @@ export const BC_ENTITIES = {
       'Posting_Date', 'Amount', 'Amount_Including_VAT',
     ],
   },
-  SalesShipment: {
-    description: 'Posted sales shipments / deliveries',
-    keyField: 'No',
+  SalesCrMemoSalesLines: {
+    description: 'Sales credit memo lines',
+    keyField: 'Document_No',
     usefulFields: [
-      'No', 'Sell_to_Customer_No', 'Sell_to_Customer_Name',
-      'Posting_Date', 'Shipment_Method_Code',
+      'Document_No', 'Line_No', 'No', 'Description',
+      'Quantity', 'Unit_Price', 'Line_Amount',
     ],
   },
 
@@ -67,6 +83,14 @@ export const BC_ENTITIES = {
       'Expected_Receipt_Date',
     ],
   },
+  PurchaseOrderPurchLines: {
+    description: 'Purchase order lines — individual line items on purchase orders',
+    keyField: 'Document_No',
+    usefulFields: [
+      'Document_No', 'Line_No', 'Type', 'No', 'Description',
+      'Quantity', 'Direct_Unit_Cost', 'Line_Amount',
+    ],
+  },
   PurchaseInvoice: {
     description: 'Posted purchase invoices',
     keyField: 'No',
@@ -75,30 +99,23 @@ export const BC_ENTITIES = {
       'Posting_Date', 'Due_Date', 'Amount', 'Amount_Including_VAT',
     ],
   },
-  PurchCrMemo: {
-    description: 'Posted purchase credit memos',
-    keyField: 'No',
+  PurchaseInvoicePurchLines: {
+    description: 'Posted purchase invoice lines',
+    keyField: 'Document_No',
     usefulFields: [
-      'No', 'Buy_from_Vendor_No', 'Posting_Date', 'Amount',
+      'Document_No', 'Line_No', 'No', 'Description',
+      'Quantity', 'Direct_Unit_Cost', 'Line_Amount',
     ],
   },
 
   // --- Inventory ---
   Item: {
-    description: 'Inventory items / products / stock / parts',
+    description: 'Inventory items / products / stock / parts / vehicles',
     keyField: 'No',
     usefulFields: [
       'No', 'Description', 'Unit_Price', 'Unit_Cost',
       'Inventory', 'Item_Category_Code', 'Vendor_No',
       'Base_Unit_of_Measure',
-    ],
-  },
-  ItemLedgerEntry: {
-    description: 'Item ledger entries — stock movements / inventory transactions',
-    keyField: 'Entry_No',
-    usefulFields: [
-      'Entry_No', 'Item_No', 'Posting_Date', 'Entry_Type',
-      'Quantity', 'Location_Code', 'Document_No',
     ],
   },
 
@@ -112,28 +129,14 @@ export const BC_ENTITIES = {
       'Source_Type', 'Source_No',
     ],
   },
-  GLAccount: {
-    description: 'Chart of accounts / GL accounts',
-    keyField: 'No',
+
+  // --- Service ---
+  ServiceInvoiceLines: {
+    description: 'Service invoice lines — service department billing lines',
+    keyField: 'Document_No',
     usefulFields: [
-      'No', 'Name', 'Account_Type', 'Net_Change',
-      'Balance_at_Date', 'Income_Balance',
-    ],
-  },
-  CustomerLedgerEntry: {
-    description: 'Customer ledger entries / debtor transactions / outstanding invoices / receivables',
-    keyField: 'Entry_No',
-    usefulFields: [
-      'Entry_No', 'Customer_No', 'Posting_Date', 'Document_Type',
-      'Document_No', 'Amount', 'Remaining_Amount', 'Due_Date', 'Open',
-    ],
-  },
-  VendorLedgerEntry: {
-    description: 'Vendor ledger entries / creditor transactions / outstanding purchase invoices / payables',
-    keyField: 'Entry_No',
-    usefulFields: [
-      'Entry_No', 'Vendor_No', 'Posting_Date', 'Document_Type',
-      'Document_No', 'Amount', 'Remaining_Amount', 'Due_Date', 'Open',
+      'Document_No', 'Line_No', 'Type', 'No', 'Description',
+      'Quantity', 'Unit_Price', 'Line_Amount', 'Posting_Date',
     ],
   },
 } as const

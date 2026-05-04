@@ -1,5 +1,7 @@
 'use client'
 
+export const dynamic = 'force-dynamic'
+
 import { useState, useRef, useEffect, KeyboardEvent } from 'react'
 import { useSession, signOut } from 'next-auth/react'
 import type { DisplayHint, StructuredData } from '@/app/api/query/route'

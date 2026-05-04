@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
       data: {
         email:    email.trim().toLowerCase(),
         name:     name?.trim() ?? '',
-        role:     role === 'admin' ? 'admin' : 'user',
+        role:     role === 'tenant_admin' ? 'tenant_admin' : 'user',
         password: hashed,
         tenantId,
       },

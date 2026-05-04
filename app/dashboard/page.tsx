@@ -352,8 +352,8 @@ export default function DashboardPage() {
           })}
         </nav>
 
-        {/* Admin link for admins */}
-        {user?.role === 'admin' && (
+        {/* Admin link — superadmin only */}
+        {user?.role === 'superadmin' && (
           <div style={{ padding: '8px 10px 0' }}>
             <a href="/admin" style={{
               display: 'flex', alignItems: 'center', gap: 10,

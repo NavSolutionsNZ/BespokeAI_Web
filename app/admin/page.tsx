@@ -553,7 +553,7 @@ export default function AdminPage() {
                     <FormRow label="Role" style={{ flex: 1 }}>
                       <select style={inputStyle} value={userForm.role} onChange={e => setUserForm(f => ({ ...f, role: e.target.value }))}>
                         <option value="user">User</option>
-                        <option value="admin">Admin</option>
+                        <option value="tenant_admin">Tenant Admin</option>
                       </select>
                     </FormRow>
                   </div>

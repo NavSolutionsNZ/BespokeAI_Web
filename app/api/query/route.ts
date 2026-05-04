@@ -16,6 +16,11 @@ interface QueryPlan {
   entity: string
   params: string
   reasoning: string
+  // Optional second entity to fetch and join with the primary
+  secondEntity?: string
+  secondParams?: string
+  joinKey?: string        // key field on primary entity (e.g. 'No')
+  joinForeignKey?: string // matching field on second entity (e.g. 'Document_No')
 }
 
 export type DisplayHint = 'narrative' | 'kpi' | 'table' | 'bar_chart' | 'line_chart'
@@ -72,6 +77,22 @@ Given a user's natural language question, output ONLY a JSON object with:
   - entity: exact BC OData entity name from the list below
   - params: OData query string (everything after the '?'), e.g. "$top=20&$filter=Balance_LCY gt 0&$orderby=Balance_LCY desc&$select=No,Name,Balance_LCY"
   - reasoning: one-sentence explanation of your choice
+  - secondEntity (optional): a second entity to fetch when data must be joined
+  - secondParams (optional): OData params for the second entity
+  - joinKey (optional): key field on the primary entity (e.g. "No")
+  - joinForeignKey (optional): matching field on secondEntity (e.g. "Document_No")
+
+Use secondEntity when you need fields from two entities that must be joined.
+Example — invoice totals by month needs dates from SalesInvoice AND amounts from SalesInvoiceSalesLines:
+{
+  "entity": "SalesInvoice",
+  "params": "$top=500&$select=No,Posting_Date,Sell_to_Customer_Name&$orderby=Posting_Date desc",
+  "secondEntity": "SalesInvoiceSalesLines",
+  "secondParams": "$top=2000&$select=Document_No,Amount_Including_VAT",
+  "joinKey": "No",
+  "joinForeignKey": "Document_No",
+  "reasoning": "Invoice dates from header, amounts from lines, joined on No=Document_No"
+}
 
 Available entities:
 ${getEntitiesSummary()}
@@ -100,9 +121,10 @@ For time-series / "by month" / "over last N months" / trend questions:
 - Instead: fetch all records with $top=500, $select only the date + amount fields, $orderby by date desc
 - Example for "invoice totals last 6 months": $top=500&$select=No,Posting_Date,Amount_Including_VAT&$orderby=Posting_Date desc
 - The answerer step will filter to the requested date range and group by month
-- For invoice/credit memo totals: use SalesInvoiceSalesLines (has Posting_Date + Line_Amount), not SalesInvoice header
-- For purchase totals: use PurchaseInvoicePurchLines (has Posting_Date + Line_Amount), not PurchaseInvoice header
-- SalesInvoice / PurchaseInvoice / SalesCrMemo headers have NO amount fields — never $select Amount or Amount_Including_VAT from them`,
+- For invoice/credit memo totals by month: use secondEntity join — SalesInvoice (dates) + SalesInvoiceSalesLines (amounts)
+- For purchase totals by month: use secondEntity join — PurchaseInvoice (dates) + PurchaseInvoicePurchLines (amounts)
+- SalesInvoice / PurchaseInvoice / SalesCrMemo headers have NO amount fields — never $select Amount or Amount_Including_VAT from them
+- SalesInvoiceSalesLines / PurchaseInvoicePurchLines have NO Posting_Date — never $select or $orderby Posting_Date from them`,
         },
         { role: 'user', content: question },
       ],
@@ -154,6 +176,49 @@ For time-series / "by month" / "over last N months" / trend questions:
       { error: `BCAgent unreachable: ${err.message}`, odataUrl, plan },
       { status: 502 },
     )
+  }
+
+  // ── Step 2b: Fetch + join second entity (optional) ───────────────────────
+
+  if (plan.secondEntity && plan.joinKey && plan.joinForeignKey) {
+    const secondUrl = buildODataUrl(tenant, plan.secondEntity, plan.secondParams)
+    try {
+      const secondRes = await fetch(secondUrl, {
+        headers: { 'X-BespoxAI-Key': tenant.apiKey, Accept: 'application/json' },
+        signal: AbortSignal.timeout(30_000),
+      })
+      if (secondRes.ok) {
+        const secondData = await secondRes.json()
+        const secondRecords: any[] = secondData.value ?? []
+
+        // Build lookup map: foreignKey → aggregated values from second records
+        const lookup = new Map<string, any>()
+        for (const rec of secondRecords) {
+          const fk = rec[plan.joinForeignKey]
+          if (fk == null) continue
+          if (!lookup.has(fk)) {
+            lookup.set(fk, { ...rec })
+          } else {
+            // Sum numeric fields across multiple lines for the same document
+            const existing = lookup.get(fk)
+            for (const [k, v] of Object.entries(rec)) {
+              if (typeof v === 'number' && typeof existing[k] === 'number') {
+                existing[k] += v
+              }
+            }
+          }
+        }
+
+        // Merge second-entity fields into primary records
+        rawRecords = rawRecords.map(rec => {
+          const pk = rec[plan.joinKey!]
+          const joined = lookup.get(pk)
+          return joined ? { ...rec, ...joined } : rec
+        })
+      }
+    } catch {
+      // Non-fatal — continue with primary records only
+    }
   }
 
   // ── Step 3: Answer — Claude produces natural language + structured data ──

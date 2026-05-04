@@ -42,11 +42,11 @@ export const BC_ENTITIES = {
     ],
   },
   SalesInvoiceSalesLines: {
-    description: 'Posted sales invoice lines — use this for invoice amounts/totals. Has Line_Amount and Posting_Date. Join on Document_No to SalesInvoice header.',
+    description: 'Posted sales invoice lines — has Amount_Including_VAT and Line_Amount but NO Posting_Date. Join Document_No to SalesInvoice.No to get dates.',
     keyField: 'Document_No',
     usefulFields: [
-      'Document_No', 'Line_No', 'Posting_Date', 'Type', 'No', 'Description',
-      'Quantity', 'Unit_Price', 'Line_Amount',
+      'Document_No', 'Line_No', 'Type', 'No', 'Description',
+      'Quantity', 'Unit_Price', 'Line_Amount', 'Amount', 'Amount_Including_VAT',
     ],
   },
   SalesCrMemo: {
@@ -58,11 +58,11 @@ export const BC_ENTITIES = {
     ],
   },
   SalesCrMemoSalesLines: {
-    description: 'Sales credit memo lines — use for credit note amounts. Has Line_Amount and Posting_Date.',
+    description: 'Sales credit memo lines — has Line_Amount but NO Posting_Date. Join Document_No to SalesCrMemo.No to get dates.',
     keyField: 'Document_No',
     usefulFields: [
-      'Document_No', 'Line_No', 'Posting_Date', 'No', 'Description',
-      'Quantity', 'Unit_Price', 'Line_Amount',
+      'Document_No', 'Line_No', 'No', 'Description',
+      'Quantity', 'Unit_Price', 'Line_Amount', 'Amount_Including_VAT',
     ],
   },
 
@@ -102,11 +102,11 @@ export const BC_ENTITIES = {
     ],
   },
   PurchaseInvoicePurchLines: {
-    description: 'Posted purchase invoice lines — use for AP amounts/totals. Has Line_Amount and Posting_Date.',
+    description: 'Posted purchase invoice lines — has Line_Amount but NO Posting_Date. Join Document_No to PurchaseInvoice.No to get dates.',
     keyField: 'Document_No',
     usefulFields: [
-      'Document_No', 'Line_No', 'Posting_Date', 'No', 'Description',
-      'Quantity', 'Direct_Unit_Cost', 'Line_Amount',
+      'Document_No', 'Line_No', 'No', 'Description',
+      'Quantity', 'Direct_Unit_Cost', 'Line_Amount', 'Amount', 'Amount_Including_VAT',
     ],
   },
 

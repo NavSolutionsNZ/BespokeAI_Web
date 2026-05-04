@@ -3,13 +3,16 @@ import { NextResponse } from 'next/server'
 
 export default withAuth(
   function middleware(req) {
-    // Could add role-based guards here if needed
+    const token = (req as any).nextauth?.token
+    const isAdminRoute = req.nextUrl.pathname.startsWith('/admin') ||
+                         req.nextUrl.pathname.startsWith('/api/admin')
+    if (isAdminRoute && token?.role !== 'admin') {
+      return NextResponse.redirect(new URL('/dashboard', req.url))
+    }
     return NextResponse.next()
   },
   {
-    pages: {
-      signIn: '/login',
-    },
+    pages: { signIn: '/login' },
     callbacks: {
       authorized({ token }) {
         return !!token?.tenantId
@@ -21,7 +24,8 @@ export default withAuth(
 export const config = {
   matcher: [
     '/dashboard/:path*',
+    '/admin/:path*',
     '/api/query',
-    // Add more protected routes here
+    '/api/admin/:path*',
   ],
 }

@@ -281,6 +281,24 @@ export default function DashboardPage() {
           })}
         </nav>
 
+        {/* Admin link for admins */}
+        {user?.role === 'admin' && (
+          <div style={{ padding: '8px 10px 0' }}>
+            <a href="/admin" style={{
+              display: 'flex', alignItems: 'center', gap: 10,
+              padding: '9px 10px', borderRadius: 8,
+              fontFamily: 'var(--font-body)', fontSize: 13,
+              color: 'rgba(200,149,42,0.7)', textDecoration: 'none',
+              transition: 'color 0.15s',
+            }}
+              onMouseEnter={e => (e.currentTarget.style.color = 'var(--amber)')}
+              onMouseLeave={e => (e.currentTarget.style.color = 'rgba(200,149,42,0.7)')}
+            >
+              <span style={{ fontSize: 12 }}>⚙</span> Admin Portal
+            </a>
+          </div>
+        )}
+
         {/* Query history */}
         {queryLogs.length > 0 && (
           <div style={{ padding: '12px 10px 0', borderTop: '1px solid rgba(255,255,255,0.06)', marginTop: 8 }}>

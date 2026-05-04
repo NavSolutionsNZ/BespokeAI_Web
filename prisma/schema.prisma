@@ -126,6 +126,7 @@ model Requirement {
   customerAnswers String?   @db.Text  // JSON array [{q, a}] or plain text for admin question answers
   quoteRejectedAt     DateTime?
   quoteRejectionReason String? @db.Text
+  devPlan         String?   @db.Text  // JSON: internal superadmin-only development plan (tasks, hours, risks, quoting notes)
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 

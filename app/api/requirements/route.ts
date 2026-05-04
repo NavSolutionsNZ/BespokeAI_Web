@@ -29,7 +29,12 @@ export async function GET() {
     },
   })
 
-  return NextResponse.json({ requirements })
+  // devPlan is internal superadmin-only — strip it from non-superadmin responses
+  const sanitised = isSuperadmin
+    ? requirements
+    : requirements.map(({ devPlan, ...rest }: any) => rest)
+
+  return NextResponse.json({ requirements: sanitised })
 }
 
 // POST /api/requirements — create a new requirement

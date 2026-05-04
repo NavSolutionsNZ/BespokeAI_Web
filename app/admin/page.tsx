@@ -1049,6 +1049,7 @@ interface AdminReq {
   quote: string | null; quoteApprovedAt: string | null; consultantNote: string | null
   adminQuestions: string | null; customerAnswers: string | null
   quoteRejectedAt: string | null; quoteRejectionReason: string | null
+  devPlan: string | null
   createdAt: string; updatedAt: string
   user: { name: string | null; email: string }
   tenant: { name: string }
@@ -1068,6 +1069,9 @@ function AdminRequirementsTab() {
   const [sendBackText, setSBT]    = useState('')
   const [genSpec, setGenSpec]     = useState(false)
   const [specErr, setSpecErr]     = useState('')
+  const [genPlan, setGenPlan]     = useState(false)
+  const [planErr, setPlanErr]     = useState('')
+  const [devPlanData, setDevPlanData] = useState<Record<string, any> | null>(null)
 
   async function load() {
     setLoading(true)
@@ -1096,6 +1100,8 @@ function AdminRequirementsTab() {
     setSelected(updated)
     setAL(false)
     setShowQF(false); setShowSB(false)
+    // Parse saved dev plan if available
+    try { setDevPlanData(updated.devPlan ? JSON.parse(updated.devPlan) : null) } catch { setDevPlanData(null) }
     return updated
   }
 
@@ -1108,6 +1114,20 @@ function AdminRequirementsTab() {
     setReqs(prev => prev.map(r => r.id === id ? updated : r))
     setSelected(updated)
     setGenSpec(false)
+  }
+
+  async function generateDevPlan(id: string) {
+    setGenPlan(true); setPlanErr('')
+    try {
+      const res  = await fetch(`/api/requirements/${id}/dev-plan`, { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      setDevPlanData(data.devPlan)
+      // Update the stored devPlan in reqs list
+      setReqs(prev => prev.map(r => r.id === id ? { ...r, devPlan: JSON.stringify(data.devPlan) } : r))
+      setSelected(prev => prev ? { ...prev, devPlan: JSON.stringify(data.devPlan) } : prev)
+    } catch(e: any) { setPlanErr(e.message ?? 'Generation failed') }
+    finally { setGenPlan(false) }
   }
 
   const filtered = filterStatus === 'all' ? reqs : reqs.filter(r => r.status === filterStatus)
@@ -1156,7 +1176,11 @@ function AdminRequirementsTab() {
           return (
             <div
               key={req.id}
-              onClick={() => setSelected(req)}
+              onClick={() => {
+                setSelected(req)
+                setShowQF(false); setShowSB(false); setPlanErr('')
+                try { setDevPlanData(req.devPlan ? JSON.parse(req.devPlan) : null) } catch { setDevPlanData(null) }
+              }}
               style={{ background: isAct ? 'rgba(10,92,70,0.04)' : 'var(--white)', border: `1px solid ${isAct ? 'rgba(10,92,70,0.2)' : 'var(--fog)'}`, borderRadius: 10, padding: '14px 16px', cursor: 'pointer', transition: 'border-color 0.15s' }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 7 }}>
@@ -1299,8 +1323,121 @@ function AdminRequirementsTab() {
               </button>
             )}
 
+            {/* ── Dev Plan (superadmin internal only) ── */}
+            {['in_review','quoted','approved','in_development','complete','quote_rejected'].includes(selected.status) && (
+              <div style={{ background: 'var(--ink)', borderRadius: 8, padding: '14px 16px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: devPlanData ? 14 : 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 8, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--amber)' }}>⚙ Internal Dev Plan</span>
+                    {devPlanData && devPlanData.totalEstimatedHours && (
+                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'rgba(214,217,212,0.5)' }}>
+                        {devPlanData.totalEstimatedHours}h · {devPlanData.tasks?.length ?? 0} tasks
+                      </span>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => generateDevPlan(selected.id)}
+                    disabled={genPlan}
+                    style={{ background: 'rgba(200,149,42,0.15)', border: '1px solid rgba(200,149,42,0.3)', color: 'var(--amber)', borderRadius: 6, padding: '5px 12px', cursor: genPlan ? 'wait' : 'pointer', fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.08em' }}
+                  >
+                    {genPlan ? '✦ Generating…' : devPlanData ? '↺ Regenerate' : '✦ Generate Dev Plan'}
+                  </button>
+                </div>
+                {planErr && <p style={{ color: '#E24B4A', fontSize: 11, marginTop: 8 }}>{planErr}</p>}
+                {devPlanData && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 4 }}>
+                    {devPlanData.summary && (
+                      <div>
+                        <p style={{ fontFamily: 'var(--font-mono)', fontSize: 8, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(214,217,212,0.35)', marginBottom: 5 }}>Summary</p>
+                        <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: 'rgba(214,217,212,0.8)', lineHeight: 1.65 }}>{devPlanData.summary}</p>
+                      </div>
+                    )}
+                    {devPlanData.approach && (
+                      <div>
+                        <p style={{ fontFamily: 'var(--font-mono)', fontSize: 8, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(214,217,212,0.35)', marginBottom: 5 }}>Technical Approach</p>
+                        <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: 'rgba(214,217,212,0.7)', lineHeight: 1.65 }}>{devPlanData.approach}</p>
+                      </div>
+                    )}
+                    {devPlanData.tasks?.length > 0 && (
+                      <div>
+                        <p style={{ fontFamily: 'var(--font-mono)', fontSize: 8, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(214,217,212,0.35)', marginBottom: 8 }}>Tasks</p>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                          {devPlanData.tasks.map((task: any, i: number) => (
+                            <div key={i} style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 6, padding: '10px 12px' }}>
+                              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8, marginBottom: task.description ? 5 : 0 }}>
+                                <span style={{ fontFamily: 'var(--font-body)', fontSize: 12, fontWeight: 600, color: 'var(--cream)', lineHeight: 1.3, flex: 1 }}>{task.title}</span>
+                                <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                                  {task.phase && <span style={{ fontFamily: 'var(--font-mono)', fontSize: 7, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--amber)', background: 'rgba(200,149,42,0.12)', border: '1px solid rgba(200,149,42,0.2)', padding: '2px 6px', borderRadius: 4 }}>{task.phase}</span>}
+                                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--jade)', fontWeight: 600 }}>{task.estimatedHours}h</span>
+                                </div>
+                              </div>
+                              {task.description && <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'rgba(214,217,212,0.6)', lineHeight: 1.55, marginBottom: task.objects?.length ? 6 : 0 }}>{task.description}</p>}
+                              {task.objects?.length > 0 && (
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                                  {task.objects.map((o: string, j: number) => (
+                                    <span key={j} style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'rgba(214,217,212,0.45)', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 4, padding: '2px 6px' }}>{o}</span>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                      {devPlanData.totalEstimatedHours && (
+                        <div style={{ background: 'rgba(26,146,114,0.12)', border: '1px solid rgba(26,146,114,0.2)', borderRadius: 6, padding: '8px 14px', textAlign: 'center' }}>
+                          <div style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 300, color: 'var(--jade)', lineHeight: 1 }}>{devPlanData.totalEstimatedHours}h</div>
+                          <div style={{ fontFamily: 'var(--font-mono)', fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(214,217,212,0.4)', marginTop: 3 }}>Total Hours</div>
+                        </div>
+                      )}
+                      {devPlanData.suggestedDailyRate && (
+                        <div style={{ background: 'rgba(200,149,42,0.1)', border: '1px solid rgba(200,149,42,0.2)', borderRadius: 6, padding: '8px 14px', textAlign: 'center' }}>
+                          <div style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 300, color: 'var(--amber)', lineHeight: 1 }}>${devPlanData.suggestedDailyRate.toLocaleString()}</div>
+                          <div style={{ fontFamily: 'var(--font-mono)', fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(214,217,212,0.4)', marginTop: 3 }}>Day Rate (NZD)</div>
+                        </div>
+                      )}
+                      {devPlanData.totalEstimatedHours && devPlanData.suggestedDailyRate && (
+                        <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 6, padding: '8px 14px', textAlign: 'center' }}>
+                          <div style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 300, color: 'var(--cream)', lineHeight: 1 }}>
+                            ${Math.round(devPlanData.totalEstimatedHours / 8 * devPlanData.suggestedDailyRate).toLocaleString()}
+                          </div>
+                          <div style={{ fontFamily: 'var(--font-mono)', fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(214,217,212,0.4)', marginTop: 3 }}>Suggested Quote</div>
+                        </div>
+                      )}
+                    </div>
+                    {devPlanData.quotingNotes && (
+                      <div style={{ background: 'rgba(200,149,42,0.08)', border: '1px solid rgba(200,149,42,0.2)', borderRadius: 6, padding: '10px 12px' }}>
+                        <p style={{ fontFamily: 'var(--font-mono)', fontSize: 8, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--amber)', marginBottom: 5 }}>💰 Quoting Notes</p>
+                        <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: 'rgba(214,217,212,0.75)', lineHeight: 1.65 }}>{devPlanData.quotingNotes}</p>
+                      </div>
+                    )}
+                    {devPlanData.risks?.length > 0 && (
+                      <div>
+                        <p style={{ fontFamily: 'var(--font-mono)', fontSize: 8, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(214,217,212,0.35)', marginBottom: 6 }}>Risks &amp; Mitigations</p>
+                        <ul style={{ margin: 0, paddingLeft: 16, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          {devPlanData.risks.map((r: string, i: number) => <li key={i} style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'rgba(214,217,212,0.6)', lineHeight: 1.6 }}>{r}</li>)}
+                        </ul>
+                      </div>
+                    )}
+                    {devPlanData.testingPlan && (
+                      <div>
+                        <p style={{ fontFamily: 'var(--font-mono)', fontSize: 8, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(214,217,212,0.35)', marginBottom: 5 }}>Testing Plan</p>
+                        <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'rgba(214,217,212,0.6)', lineHeight: 1.6 }}>{devPlanData.testingPlan}</p>
+                      </div>
+                    )}
+                    {devPlanData.deploymentNotes && (
+                      <div>
+                        <p style={{ fontFamily: 'var(--font-mono)', fontSize: 8, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(214,217,212,0.35)', marginBottom: 5 }}>Deployment</p>
+                        <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'rgba(214,217,212,0.6)', lineHeight: 1.6 }}>{devPlanData.deploymentNotes}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Quote info */}
-            {selected.quote && (
               <div style={{ background: 'rgba(10,92,70,0.05)', border: '1px solid rgba(10,92,70,0.2)', borderRadius: 8, padding: '12px 14px' }}>
                 <p style={{ fontFamily: 'var(--font-mono)', fontSize: 8, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--slate)', marginBottom: 6 }}>Quote</p>
                 <p style={{ fontFamily: 'var(--font-display)', fontSize: 26, fontWeight: 500, color: 'var(--forest)', lineHeight: 1 }}>${parseFloat(selected.quote).toLocaleString()}</p>

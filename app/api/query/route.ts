@@ -63,6 +63,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Tenant not configured' }, { status: 404 })
   }
 
+  // ── Load known bad queries for this tenant ───────────────────────────────
+  // These previously caused BC OData 400s — we use them to steer the classifier
+  // away from repeating the same mistakes, and exclude them from suggestions.
+  let badQueryQuestions: string[] = []
+  try {
+    const badLogs = await prisma.queryLog.findMany({
+      where: { tenantId: tenant.tenantId, entity: '__BAD_QUERY__' },
+      select: { question: true },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+    })
+    badQueryQuestions = badLogs.map(l => l.question)
+  } catch { /* non-fatal */ }
+
   // ── Step 0: Route — does this question need live BC data? ──────────────────
   // Fast GPT call to classify before hitting the full 3-step pipeline.
 
@@ -89,6 +103,7 @@ export async function POST(req: NextRequest) {
 
 Classify whether the user's question requires live Business Central data to answer, or can be answered from general BC/accounting/CFO knowledge.
 
+${badQueryQuestions.length > 0 ? `IMPORTANT — the following questions have previously caused OData errors and must NOT be routed as data queries. If the user's question is similar, treat it as needsData=false and explain the limitation:\n${badQueryQuestions.slice(0, 20).map(q => `- ${q}`).join('\n')}\n` : ''}
 Return JSON:
 {
   "needsData": true | false,
@@ -238,15 +253,72 @@ For time-series / "by month" / "over last N months" / trend questions:
 
     if (!bcRes.ok) {
       const errText = await bcRes.text()
-      return NextResponse.json(
-        {
-          error: `BC OData returned ${bcRes.status}`,
-          detail: errText,
-          odataUrl,
-          plan,
+
+      // ── GPT recovery: explain why + suggest better questions ─────────────
+      let recoveryAnswer = "Business Central couldn't process that query — the specific filter or field combination isn't supported by this version of BC's OData API."
+      let recoverySuggestions: string[] = []
+
+      try {
+        const recoveryRes = await openai.chat.completions.create({
+          model: 'gpt-4o',
+          max_tokens: 600,
+          response_format: { type: 'json_object' },
+          messages: [
+            {
+              role: 'system',
+              content: `${PERSONA}
+
+A Business Central v14 OData query returned a 400 Bad Request error. Explain to the CFO in plain language why this specific question couldn't be answered, and suggest 2–3 alternative questions that WILL work.
+
+BC v14 OData limitations to consider:
+- Date filtering ($filter on Posting_Date) is not supported on posted documents (SalesInvoice, PurchaseInvoice, SalesCrMemo, GeneralLedgerEntry) — returns 400
+- $apply, groupby, aggregate() are not supported — returns 400  
+- Boolean fields like "Blocked" may not be filterable on all entities
+- Only fields listed in the entity's metadata can be used in $filter or $select
+
+Return JSON:
+{
+  "reason": "1–2 sentences explaining in plain CFO language why this question couldn't be answered directly, without technical jargon",
+  "suggestedQueries": ["alternative question 1", "alternative question 2", "alternative question 3"]
+}`,
+            },
+            {
+              role: 'user',
+              content: `User question: "${question}"\nOData URL attempted: ${odataUrl}\nBC error: ${errText.slice(0, 300)}`,
+            },
+          ],
+        })
+
+        const raw = recoveryRes.choices[0].message.content ?? '{}'
+        const clean = raw.replace(/^```[a-z]*\n?/, '').replace(/```$/, '').trim()
+        const parsed = JSON.parse(clean)
+        recoveryAnswer    = parsed.reason           ?? recoveryAnswer
+        recoverySuggestions = parsed.suggestedQueries ?? []
+      } catch { /* use defaults */ }
+
+      // ── Log as bad query so it's never repeated ──────────────────────────
+      prisma.queryLog.create({
+        data: {
+          tenantId:    tenant.tenantId,
+          userId:      (session.user as any).id,
+          question,
+          answer:      recoveryAnswer,
+          displayHint: 'narrative',
+          entity:      '__BAD_QUERY__',
+          recordCount: 0,
+          data:        { reason: recoveryAnswer, suggestedQueries: recoverySuggestions } as any,
         },
-        { status: 400 },
-      )
+      }).catch(() => {})
+
+      // ── Return friendly response — no raw error shown to user ────────────
+      return NextResponse.json({
+        answer:          recoveryAnswer,
+        displayHint:     'narrative' as DisplayHint,
+        data:            null,
+        badQuery:        true,
+        suggestedQueries: recoverySuggestions,
+        meta: { entity: '__BAD_QUERY__', reasoning: 'OData 400 — query not supported', recordCount: 0, odataUrl },
+      })
     }
 
     bcData = await bcRes.json()

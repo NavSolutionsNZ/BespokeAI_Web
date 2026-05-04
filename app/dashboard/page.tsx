@@ -63,6 +63,7 @@ interface QueryResult {
   error?: string
   errorDetail?: string
   errorUrl?: string
+  badQuery?: boolean
   suggestedQueries?: string[]
   ts: Date
   loading?: boolean
@@ -202,6 +203,7 @@ export default function DashboardPage() {
         answer: data.answer ?? '', displayHint: data.displayHint,
         data: data.data, meta: data.meta, error: data.error,
         errorDetail: data.detail, errorUrl: data.odataUrl,
+        badQuery: data.badQuery ?? false,
         suggestedQueries: data.suggestedQueries,
       }))
       if (!data.error) {
@@ -588,6 +590,38 @@ export default function DashboardPage() {
                     }}>
                       {item.loading ? (
                         <LoadingDots />
+                      ) : item.badQuery ? (
+                        /* ── Bad query warning card ── */
+                        <div style={{ borderLeft: '3px solid #C68B00', paddingLeft: 14 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                            <span style={{ fontSize: 15 }}>⚠️</span>
+                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#8A6000', fontWeight: 600 }}>
+                              Query not supported
+                            </span>
+                          </div>
+                          <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'var(--ink)', lineHeight: 1.65, marginBottom: 14 }}>
+                            {item.answer}
+                          </p>
+                          {item.suggestedQueries && item.suggestedQueries.length > 0 && (
+                            <div>
+                              <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#8A6000', marginBottom: 8 }}>
+                                Try asking instead
+                              </div>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                {item.suggestedQueries.map((q, i) => (
+                                  <button key={i}
+                                    onClick={() => { setQuestion(q); textareaRef.current?.focus() }}
+                                    style={{ background: '#FFFBEB', border: '1px solid #C68B00', borderRadius: 8, padding: '8px 14px', cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: 13, color: '#5C4A00', textAlign: 'left', lineHeight: 1.4, transition: 'background 0.15s' }}
+                                    onMouseEnter={e => { e.currentTarget.style.background = '#FEF3C7' }}
+                                    onMouseLeave={e => { e.currentTarget.style.background = '#FFFBEB' }}
+                                  >
+                                    → {q}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
                       ) : item.error ? (
                         <div>
                           <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#A32D2D', lineHeight: 1.6, marginBottom: item.errorUrl ? 10 : 0 }}>

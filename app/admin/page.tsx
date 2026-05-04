@@ -44,8 +44,10 @@ export default function AdminPage() {
 
   // New tenant form
   const [showNewTenant, setShowNewTenant]         = useState(false)
-  const [tenantForm, setTenantForm]               = useState({ name: '', tunnelSubdomain: '', bcInstance: 'GWM_Dev', bcCompany: 'GWM' })
-  const [newTenantResult, setNewTenantResult]     = useState<{ apiKey: string; name: string } | null>(null)
+  const [tenantForm, setTenantForm]               = useState({ name: '', tunnelSubdomain: '', bcInstance: 'BC', bcCompany: 'CRONUS International Ltd.' })
+  const [newTenantResult, setNewTenantResult]     = useState<{ apiKey: string; name: string; tenantId?: string; provisioned?: boolean } | null>(null)
+  const [provisionMode, setProvisionMode]         = useState(true)   // true = auto-provision, false = manual
+  const [provisionSteps, setProvisionSteps]       = useState<string[]>([])
 
   // New user form
   const [showNewUser, setShowNewUser]             = useState(false)
@@ -114,16 +116,21 @@ export default function AdminPage() {
   }
 
   async function createTenant() {
-    setSaving(true); setError('')
-    const res  = await fetch('/api/admin/tenants', {
+    setSaving(true); setError(''); setProvisionSteps([])
+    const endpoint = provisionMode ? '/api/admin/provision' : '/api/admin/tenants'
+    const res  = await fetch(endpoint, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(tenantForm),
     })
     const data = await res.json()
-    if (!res.ok) { setError(data.error); setSaving(false); return }
+    if (!res.ok) {
+      if (data.steps) setProvisionSteps(data.steps)
+      setError(data.error); setSaving(false); return
+    }
+    if (data.steps) setProvisionSteps(data.steps)
     setTenants(prev => [...prev, { ...data.tenant, _count: { users: 0, queryLogs: 0 } }])
-    setNewTenantResult({ apiKey: data.apiKey, name: data.tenant.name })
-    setTenantForm({ name: '', tunnelSubdomain: '', bcInstance: 'GWM_Dev', bcCompany: 'GWM' })
+    setNewTenantResult({ apiKey: data.apiKey, name: data.tenant.name, tenantId: data.tenant.id, provisioned: provisionMode })
+    setTenantForm({ name: '', tunnelSubdomain: '', bcInstance: 'BC', bcCompany: 'CRONUS International Ltd.' })
     setShowNewTenant(false)
     setSaving(false)
   }
@@ -242,12 +249,37 @@ export default function AdminPage() {
 
           {/* ── Temp credential banners ──────────────────────────────────── */}
           {newTenantResult && (
-            <CredentialBanner
-              title={`Tenant "${newTenantResult.name}" created`}
-              label="BCAgent API Key — copy now, not shown again:"
-              value={newTenantResult.apiKey}
-              onDismiss={() => setNewTenantResult(null)}
-            />
+            <div style={{ background: 'rgba(200,149,42,0.08)', border: '1px solid rgba(200,149,42,0.3)', borderRadius: 12, padding: '16px 20px', marginBottom: 20 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+                <span style={{ fontFamily: 'var(--font-body)', fontSize: 14, fontWeight: 500, color: 'var(--ink)' }}>
+                  {newTenantResult.provisioned ? '🎉 Tenant provisioned — tunnel + DNS configured automatically' : `Tenant "${newTenantResult.name}" created`}
+                </span>
+                <button onClick={() => setNewTenantResult(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--slate)', fontSize: 16 }}>✕</button>
+              </div>
+              {provisionSteps.length > 0 && (
+                <div style={{ marginBottom: 12 }}>
+                  {provisionSteps.map((s, i) => <div key={i} style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--forest)', marginBottom: 3 }}>{s}</div>)}
+                </div>
+              )}
+              <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--slate)', marginBottom: 6 }}>
+                {newTenantResult.provisioned ? 'Pre-configured installer — ready to send to customer IT:' : 'BCAgent API Key — copy now, not shown again:'}
+              </div>
+              <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                {newTenantResult.provisioned ? (
+                  <a
+                    href={`/api/admin/installer/${newTenantResult.tenantId}`}
+                    style={{ ...btnStyle, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                  >
+                    ↓ Download Installer (.ps1)
+                  </a>
+                ) : (
+                  <>
+                    <code style={{ flex: 1, background: 'var(--parchment)', padding: '8px 12px', borderRadius: 6, fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--ink)', wordBreak: 'break-all' }}>{newTenantResult.apiKey}</code>
+                    <button onClick={() => navigator.clipboard.writeText(newTenantResult!.apiKey)} style={{ ...btnStyle, flexShrink: 0, fontSize: 12 }}>Copy</button>
+                  </>
+                )}
+              </div>
+            </div>
           )}
           {newUserResult && (
             <CredentialBanner
@@ -324,9 +356,19 @@ export default function AdminPage() {
           {tab === 'tenants' && (
             <div style={{ maxWidth: 860 }}>
               {showNewTenant && (
-                <FormCard title="New tenant" onCancel={() => setShowNewTenant(false)} onSave={createTenant} saving={saving} error={error}>
-                  <FormRow label="Tenant name"><input style={inputStyle} value={tenantForm.name} onChange={e => setTenantForm(f => ({ ...f, name: e.target.value }))} placeholder="GWM Dealership" /></FormRow>
-                  <FormRow label="Tunnel subdomain"><input style={inputStyle} value={tenantForm.tunnelSubdomain} onChange={e => setTenantForm(f => ({ ...f, tunnelSubdomain: e.target.value }))} placeholder="gwmdev" /><span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--slate)', marginTop: 4, display: 'block' }}>→ {tenantForm.tunnelSubdomain || 'subdomain'}-agent.bespoxai.com</span></FormRow>
+                <FormCard title={provisionMode ? 'Provision new tenant' : 'Add tenant manually'} onCancel={() => setShowNewTenant(false)} onSave={createTenant} saving={saving} error={error}>
+                  {/* Mode toggle */}
+                  <div style={{ display: 'flex', gap: 8, marginBottom: 4 }}>
+                    {[['auto', 'Auto-provision (recommended)', true], ['manual', 'Manual (I have a tunnel)', false]].map(([key, label, val]) => (
+                      <button key={key as string} onClick={() => setProvisionMode(val as boolean)} style={{ padding: '6px 14px', borderRadius: 8, border: `1px solid ${provisionMode === val ? 'var(--forest)' : 'var(--fog)'}`, background: provisionMode === val ? 'rgba(26,146,114,0.08)' : 'transparent', cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: 12, color: provisionMode === val ? 'var(--forest)' : 'var(--slate)' }}>
+                        {label as string}
+                      </button>
+                    ))}
+                  </div>
+                  {provisionMode && <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: 'var(--slate)', margin: '0 0 4px' }}>Creates the Cloudflare tunnel, DNS record, and pre-configured installer automatically.</p>}
+
+                  <FormRow label="Tenant name"><input style={inputStyle} value={tenantForm.name} onChange={e => setTenantForm(f => ({ ...f, name: e.target.value }))} placeholder="Acme Motors" /></FormRow>
+                  <FormRow label="Tunnel subdomain"><input style={inputStyle} value={tenantForm.tunnelSubdomain} onChange={e => setTenantForm(f => ({ ...f, tunnelSubdomain: e.target.value }))} placeholder="acmemotors" /><span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--slate)', marginTop: 4, display: 'block' }}>→ {tenantForm.tunnelSubdomain || 'subdomain'}-agent.bespoxai.com</span></FormRow>
                   <div style={{ display: 'flex', gap: 16 }}>
                     <FormRow label="BC instance" style={{ flex: 1 }}><input style={inputStyle} value={tenantForm.bcInstance} onChange={e => setTenantForm(f => ({ ...f, bcInstance: e.target.value }))} /></FormRow>
                     <FormRow label="BC company" style={{ flex: 1 }}><input style={inputStyle} value={tenantForm.bcCompany} onChange={e => setTenantForm(f => ({ ...f, bcCompany: e.target.value }))} /></FormRow>
@@ -353,9 +395,14 @@ export default function AdminPage() {
                         <td style={{ ...tdStyle, textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 11 }}>{t._count.queryLogs}</td>
                         <td style={tdStyle}><StatusPill active={t.active} /></td>
                         <td style={tdStyle}>
+                          <div style={{ display: 'flex', gap: 8 }}>
+                          {(t as any).tunnelId && (
+                            <a href={`/api/admin/installer/${t.id}`} style={{ ...ghostBtn, color: 'var(--forest)', textDecoration: 'none', display: 'inline-block' }}>↓ Installer</a>
+                          )}
                           <button onClick={() => toggleTenant(t.id, t.active)} style={{ ...ghostBtn, color: t.active ? '#A32D2D' : 'var(--forest)' }}>
                             {t.active ? 'Deactivate' : 'Activate'}
                           </button>
+                        </div>
                         </td>
                       </tr>
                     ))}

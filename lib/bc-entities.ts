@@ -70,11 +70,14 @@ export const BC_ENTITIES = {
 
   // --- Vendors & Purchasing ---
   Vendor: {
-    description: 'Vendors / suppliers / creditors',
+    description: 'Vendors / suppliers / creditors. To find vendors with outstanding AP use $filter=Balance_LCY gt 0. No Due_Date field on Vendor.',
     keyField: 'No',
     usefulFields: [
-      'No', 'Name', 'Balance_LCY', 'Phone_No', 'E_Mail',
-      'City', 'Country_Region_Code', 'Payment_Terms_Code',
+      'No', 'Name', 'Balance_LCY', 'Purchases_LCY',
+      'Phone_No', 'Mobile_Phone_No', 'E_Mail',
+      'Address', 'City', 'Post_Code', 'Country_Region_Code',
+      'Payment_Terms_Code', 'Payment_Method_Code', 'Purchaser_Code',
+      'Blocked', 'Last_Date_Modified', 'VAT_Registration_No', 'No_of_Documents',
     ],
   },
   PurchaseOrder: {
@@ -114,23 +117,28 @@ export const BC_ENTITIES = {
 
   // --- Inventory ---
   Item: {
-    description: 'Inventory items / products / stock / parts / vehicles',
+    description: 'Inventory items / products / stock / parts / vehicles. Blocked is boolean (false=active). No Item_Category_Code field.',
     keyField: 'No',
     usefulFields: [
-      'No', 'Description', 'Unit_Price', 'Unit_Cost',
-      'Inventory', 'Item_Category_Code', 'Vendor_No',
-      'Base_Unit_of_Measure',
+      'No', 'Description', 'Make_Code', 'Item_Group_Code',
+      'Unit_Price', 'Unit_Price_incl_VAT', 'Unit_Cost', 'Last_Direct_Cost',
+      'Inventory', 'Vendor_No', 'Base_Unit_of_Measure',
+      'Blocked', 'Creation_Date', 'Last_Date_Modified',
+      'Inventory_Posting_Group', 'Gen_Prod_Posting_Group',
     ],
   },
 
   // --- Finance ---
   GeneralLedgerEntry: {
-    description: 'General ledger entries / GL entries / journal entries / accounting transactions',
+    description: 'Item ledger entries — inventory movements (purchases and sales of physical items/vehicles). Entry_Type is Purchase or Sale. Amount is cost value. Has Posting_Date. Use for inventory cost queries, vehicle movement history, sales/purchase volume by item.',
     keyField: 'Entry_No',
     usefulFields: [
-      'Entry_No', 'G_L_Account_No', 'Posting_Date', 'Document_Date',
-      'Description', 'Amount', 'Document_No', 'Document_Type',
-      'Source_Type', 'Source_No',
+      'Entry_No', 'Posting_Date', 'Entry_Type', 'Document_No',
+      'Item_No', 'Description', 'Amount', 'Adjusted_Cost',
+      'Quantity', 'Invoiced_Quantity', 'Remaining_Quantity',
+      'Location_Code', 'Global_Dimension_1_Code', 'Global_Dimension_2_Code',
+      'Serial_No', 'VIN', 'Open',
+      'Salespers_Purch_Code', 'Source_No_Payment', 'Main_Area',
     ],
   },
 

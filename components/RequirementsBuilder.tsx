@@ -621,7 +621,7 @@ export default function RequirementsBuilder({ userRole, tenantId, bcConnected=fa
                         <div style={{marginTop:8,paddingTop:8,borderTop:'1px solid var(--fog)'}}>
                           <p style={{fontFamily:'var(--font-mono)',fontSize:8,letterSpacing:'0.1em',textTransform:'uppercase',color:'var(--slate)',marginBottom:5}}>Refinement history</p>
                           <div style={{display:'flex',flexDirection:'column',gap:2}}>
-                            {spec._refinementHistory.map((h:string,i:number)=>(
+                            {(spec._refinementHistory ?? []).map((h:string,i:number)=>(
                               <span key={i} style={{fontFamily:'var(--font-mono)',fontSize:9,color:'rgba(59,82,73,0.5)'}}>v{i+2}: {h}</span>
                             ))}
                           </div>

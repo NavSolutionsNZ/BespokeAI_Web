@@ -617,7 +617,7 @@ export default function RequirementsBuilder({ userRole, tenantId, bcConnected=fa
                   <div style={{display:'flex',flexDirection:'column',gap:16}}>
                     <Sect title="User Story">
                       <p style={{fontFamily:'var(--font-body)',fontSize:13,color:'var(--ink)',lineHeight:1.7,fontStyle:'italic'}}>{spec.userStory}</p>
-                      {spec._refinementHistory?.length>0&&(
+                      {(spec._refinementHistory?.length ?? 0)>0&&(
                         <div style={{marginTop:8,paddingTop:8,borderTop:'1px solid var(--fog)'}}>
                           <p style={{fontFamily:'var(--font-mono)',fontSize:8,letterSpacing:'0.1em',textTransform:'uppercase',color:'var(--slate)',marginBottom:5}}>Refinement history</p>
                           <div style={{display:'flex',flexDirection:'column',gap:2}}>

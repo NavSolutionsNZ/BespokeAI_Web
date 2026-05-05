@@ -7,7 +7,7 @@ export interface Requirement {
   bcArea: string; priority: string; aiSpec: string | null; status: string
   quote: string | null; quoteApprovedAt: string | null; consultantNote: string | null
   depositAmount: string | null; depositPaidAt: string | null; balancePaidAt: string | null
-  adminQuestions: string | null; customerAnswers: string | null
+  adminQuestions: string | null; customerAnswers: string | null; adminQALog: string | null
   quoteRejectedAt: string | null; quoteRejectionReason: string | null
   createdAt: string; updatedAt: string
   user: { name: string | null; email: string }
@@ -392,6 +392,26 @@ export default function RequirementsBuilder({ userRole, tenantId, bcConnected=fa
                   <p style={{fontFamily:'var(--font-body)',fontSize:13,color:'var(--ink)',lineHeight:1.7,whiteSpace:'pre-wrap',marginBottom:14}}>{req.adminQuestions}</p>
                   <label style={lbl}>Your answers</label>
                   <textarea placeholder="Please answer each question as fully as possible. You can also update the description below before resubmitting." value={adminAnswerDraft} onChange={e=>setAAD(e.target.value)} rows={5} style={{...iSt,resize:'vertical',lineHeight:1.65,marginBottom:10}} onFocus={fo} onBlur={bl}/>
+
+                  {/* Previous Q&A rounds */}
+                  {(()=>{
+                    let log:any[]=[]
+                    try{log=req.adminQALog?JSON.parse(req.adminQALog):[]}catch{}
+                    const prev=log.filter((r:any)=>r.answers!==null)
+                    return prev.length>0?(
+                      <div style={{marginBottom:10,padding:'10px 12px',background:'rgba(163,45,45,0.04)',borderRadius:6,border:'1px solid rgba(163,45,45,0.12)'}}>
+                        <p style={{fontFamily:'var(--font-mono)',fontSize:8,letterSpacing:'0.1em',textTransform:'uppercase',color:'rgba(163,45,45,0.5)',marginBottom:8}}>Previous consultation rounds on record</p>
+                        {prev.map((r:any,i:number)=>(
+                          <div key={i} style={{marginBottom:8,paddingLeft:8,borderLeft:'2px solid rgba(163,45,45,0.2)'}}>
+                            <p style={{fontFamily:'var(--font-mono)',fontSize:8,color:'rgba(163,45,45,0.5)',marginBottom:3}}>Round {r.round} · {new Date(r.askedAt).toLocaleDateString('en-NZ')}</p>
+                            <p style={{fontFamily:'var(--font-body)',fontSize:11,color:'var(--ink)',lineHeight:1.55,whiteSpace:'pre-wrap',marginBottom:4}}>{r.questions}</p>
+                            <p style={{fontFamily:'var(--font-body)',fontSize:11,color:'var(--slate)',lineHeight:1.55,fontStyle:'italic'}}>{r.answers}</p>
+                          </div>
+                        ))}
+                      </div>
+                    ):null
+                  })()}
+
                   <button onClick={async()=>{await patch(req.id,{customerAnswers:adminAnswerDraft,status:'submitted'});setAAD('')}} disabled={!adminAnswerDraft.trim()||actLoading} style={{...pBTN,opacity:!adminAnswerDraft.trim()?0.6:1}}>
                     Resubmit with Answers →
                   </button>

@@ -125,8 +125,9 @@ model Requirement {
   depositPaidAt   DateTime?
   balancePaidAt   DateTime?
   consultantNote  String?   @db.Text
-  adminQuestions  String?   @db.Text  // Questions sent back by admin when status = needs_clarification
-  customerAnswers String?   @db.Text  // JSON array [{q, a}] or plain text for admin question answers
+  adminQuestions  String?   @db.Text  // Most recent admin questions (current round)
+  customerAnswers String?   @db.Text  // JSON array [{q, a}] — answers to AI clarifying questions
+  adminQALog      String?   @db.Text  // JSON array [{round, questions, answers, askedAt, answeredAt}]
   quoteRejectedAt      DateTime?
   quoteRejectionReason String?  @db.Text
   devPlan         String?   @db.Text  // JSON: internal superadmin-only development plan (tasks, hours, risks, quoting notes)

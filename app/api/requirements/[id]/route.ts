@@ -5,6 +5,12 @@ import { prisma } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
+// Helper: read adminQALog as array
+function readQALog(raw: string | null): any[] {
+  if (!raw) return []
+  try { return JSON.parse(raw) } catch { return [] }
+}
+
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions)
   if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -21,13 +27,34 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const updateData: any = {}
 
   if (isSuperadmin) {
-    if (body.status !== undefined)               updateData.status               = body.status
-    if (body.quote !== undefined)                updateData.quote                = body.quote !== null ? parseFloat(body.quote) : null
-    if (body.consultantNote !== undefined)       updateData.consultantNote       = body.consultantNote
-    if (body.aiSpec !== undefined)               updateData.aiSpec               = body.aiSpec
-    if (body.adminQuestions !== undefined)       updateData.adminQuestions       = body.adminQuestions
-    if (body.status === 'needs_clarification' && body.adminQuestions)
+    if (body.status !== undefined)         updateData.status         = body.status
+    if (body.quote !== undefined)          updateData.quote          = body.quote !== null ? parseFloat(body.quote) : null
+    if (body.consultantNote !== undefined) updateData.consultantNote = body.consultantNote
+
+    // Superadmin can directly patch bcObjects in the aiSpec
+    if (body.bcObjects !== undefined && existing.aiSpec) {
+      try {
+        const spec = JSON.parse(existing.aiSpec)
+        spec.bcObjects = body.bcObjects
+        updateData.aiSpec = JSON.stringify(spec)
+      } catch { /* ignore */ }
+    }
+
+    // Send back with questions → needs_clarification
+    // Append new round to adminQALog
+    if (body.status === 'needs_clarification' && body.adminQuestions) {
       updateData.adminQuestions = body.adminQuestions
+      const log = readQALog(existing.adminQALog)
+      log.push({
+        round:      log.length + 1,
+        questions:  body.adminQuestions,
+        answers:    null,
+        askedAt:    new Date().toISOString(),
+        answeredAt: null,
+      })
+      updateData.adminQALog = JSON.stringify(log)
+    }
+
     // Admin marks deposit paid
     if (body.status === 'deposit_paid') {
       updateData.status = 'deposit_paid'
@@ -38,37 +65,51 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       updateData.status = 'fully_paid'
       updateData.balancePaidAt = new Date()
     }
-    // Admin starts dev after deposit confirmed
     if (body.status === 'in_development' && existing.status === 'deposit_paid') {
       updateData.status = 'in_development'
     }
-    // Admin marks complete (→ balance required)
     if (body.status === 'complete_pending_payment' && existing.status === 'in_development') {
       updateData.status = 'complete_pending_payment'
     }
+
   } else {
-    // Customer / tenant_admin
+    // Customer
     const { status, title, description, bcArea, priority, customerAnswers, quoteRejectionReason } = body
 
-    // Submit (draft → submitted, or needs_clarification → submitted)
+    // Submit: also record customer answers against the open admin Q&A round
     if (status === 'submitted' && ['draft', 'needs_clarification', 'quote_rejected'].includes(existing.status)) {
       updateData.status = 'submitted'
+
+      // If coming from needs_clarification, pair the answer with the open round
+      if (existing.status === 'needs_clarification' && customerAnswers) {
+        updateData.customerAnswers = customerAnswers
+        const log = readQALog(existing.adminQALog)
+        // Find last unanswered round and fill it in
+        const lastOpen = [...log].reverse().find((r: any) => r.answers === null)
+        if (lastOpen) {
+          lastOpen.answers    = customerAnswers
+          lastOpen.answeredAt = new Date().toISOString()
+          updateData.adminQALog = JSON.stringify(log)
+        }
+      }
     }
-    // Approve quote → deposit_required (20% deposit)
+
+    // Approve quote → deposit_required
     if (status === 'deposit_required' && existing.status === 'quoted') {
       updateData.status = 'deposit_required'
       updateData.quoteApprovedAt = new Date()
-      // Auto-calculate 20% deposit
       if (existing.quote) {
         updateData.depositAmount = parseFloat(existing.quote.toString()) * 0.2
       }
     }
+
     // Reject quote
     if (status === 'quote_rejected' && existing.status === 'quoted') {
       updateData.status = 'quote_rejected'
       updateData.quoteRejectedAt = new Date()
       updateData.quoteRejectionReason = quoteRejectionReason ?? ''
     }
+
     // Edit while in editable states
     if (['draft', 'needs_clarification', 'quote_rejected'].includes(existing.status)) {
       if (title !== undefined)           updateData.title           = title.trim()

@@ -29,7 +29,8 @@ REFINEMENT MODE: You are updating an existing functional spec based on the custo
 - Carry forward ALL context from the previous spec (objects, criteria, assumptions) unless specifically overridden by the changes
 - Update bcObjects, acceptanceCriteria, estimatedDays, and complexity to reflect the changes
 - If the customer edited the user story or acceptance criteria directly, use their wording as the authoritative version
-- Reduce the questions list — only ask about things genuinely still unclear after the changes
+- Admin/consultant Q&A rounds carry extra weight — incorporate those answers directly into bcObjects and acceptanceCriteria
+- Reduce the questions list — only ask about things genuinely still unclear after ALL Q&A rounds (AI questions AND admin questions)
 - Note in assumptions what changed from the previous version` : `
 
 INITIAL SPEC MODE: Analyse the plain-English customisation request and:
@@ -211,6 +212,23 @@ Notes: ${prevSpec.notes ?? ''}`
     }
   }
 
+  // ── Admin Q&A log context ────────────────────────────────────────────────
+  let adminQASection = ''
+  try {
+    const qaLog = req_data.adminQALog ? JSON.parse(req_data.adminQALog) : []
+    if (qaLog.length > 0) {
+      const answeredRounds = qaLog.filter((r: any) => r.answers !== null)
+      if (answeredRounds.length > 0) {
+        adminQASection = '\n--- Admin/consultant questions and customer answers ---\n' +
+          answeredRounds.map((r: any) => [
+            `Round ${r.round}:`,
+            `Questions from consultant:\n${r.questions}`,
+            `Customer answers:\n${r.answers}`,
+          ].join('\n')).join('\n\n')
+      }
+    }
+  } catch { /* ignore */ }
+
   const prompt = [
     `BC Area: ${req_data.bcArea}`,
     `Priority: ${req_data.priority.replace(/_/g, ' ')}`,
@@ -219,6 +237,7 @@ Notes: ${prevSpec.notes ?? ''}`
     'Original customer description:',
     req_data.description,
     qaSection,
+    adminQASection,
     refinementSection,
   ].filter(Boolean).join('\n')
 

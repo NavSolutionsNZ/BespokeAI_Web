@@ -1051,7 +1051,7 @@ interface AdminReq {
   id: string; tenantId: string; userId: string; title: string; description: string
   bcArea: string; priority: string; aiSpec: string | null; status: string
   quote: string | null; quoteApprovedAt: string | null; consultantNote: string | null
-  adminQuestions: string | null; customerAnswers: string | null
+  adminQuestions: string | null; customerAnswers: string | null; adminQALog: string | null
   quoteRejectedAt: string | null; quoteRejectionReason: string | null
   devPlan: string | null
   createdAt: string; updatedAt: string
@@ -1076,6 +1076,9 @@ function AdminRequirementsTab() {
   const [genPlan, setGenPlan]     = useState(false)
   const [planErr, setPlanErr]     = useState('')
   const [devPlanData, setDevPlanData] = useState<Record<string, any> | null>(null)
+  const [showObjectEditor, setShowObjectEditor] = useState(false)
+  const [editableObjects, setEditableObjects]   = useState<string[]>([])
+  const [newObjectText, setNewObjectText]       = useState('')
 
   async function load() {
     setLoading(true)
@@ -1104,6 +1107,11 @@ function AdminRequirementsTab() {
     setSelected(updated)
     setAL(false)
     setShowQF(false); setShowSB(false)
+    // Refresh editableObjects from updated spec
+    try {
+      const s = updated.aiSpec ? JSON.parse(updated.aiSpec) : null
+      setEditableObjects(s?.bcObjects ?? [])
+    } catch { /* keep existing */ }
     // Parse saved dev plan if available
     try { setDevPlanData(updated.devPlan ? JSON.parse(updated.devPlan) : null) } catch { setDevPlanData(null) }
     return updated
@@ -1183,7 +1191,12 @@ function AdminRequirementsTab() {
               onClick={() => {
                 setSelected(req)
                 setShowQF(false); setShowSB(false); setPlanErr('')
+                setShowObjectEditor(false); setNewObjectText('')
                 try { setDevPlanData(req.devPlan ? JSON.parse(req.devPlan) : null) } catch { setDevPlanData(null) }
+                try {
+                  const s = req.aiSpec ? JSON.parse(req.aiSpec) : null
+                  setEditableObjects(s?.bcObjects ?? [])
+                } catch { setEditableObjects([]) }
               }}
               style={{ background: isAct ? 'rgba(10,92,70,0.04)' : 'var(--white)', border: `1px solid ${isAct ? 'rgba(10,92,70,0.2)' : 'var(--fog)'}`, borderRadius: 10, padding: '14px 16px', cursor: 'pointer', transition: 'border-color 0.15s' }}
             >
@@ -1260,6 +1273,37 @@ function AdminRequirementsTab() {
               </div>
             )}
 
+            {/* Q&A history — admin questions + customer answers by round */}
+            {selected.adminQALog && (() => {
+              let log: any[] = []
+              try { log = JSON.parse(selected.adminQALog) } catch { return null }
+              if (log.length === 0) return null
+              return (
+                <div style={{ background: 'var(--white)', border: '1px solid var(--fog)', borderRadius: 8, padding: '12px 14px' }}>
+                  <p style={{ fontFamily: 'var(--font-mono)', fontSize: 8, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--slate)', marginBottom: 10 }}>
+                    Consultant Q&amp;A Log ({log.length} round{log.length !== 1 ? 's' : ''})
+                  </p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    {log.map((round: any, i: number) => (
+                      <div key={i} style={{ paddingLeft: 10, borderLeft: `2px solid ${round.answers ? 'var(--jade)' : 'rgba(200,149,42,0.5)'}` }}>
+                        <p style={{ fontFamily: 'var(--font-mono)', fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: round.answers ? 'var(--jade)' : '#9A6A00', marginBottom: 5 }}>
+                          Round {round.round} · {new Date(round.askedAt).toLocaleDateString('en-NZ')}
+                          {round.answers ? ` · Answered ${new Date(round.answeredAt).toLocaleDateString('en-NZ')}` : ' · Awaiting response'}
+                        </p>
+                        <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'var(--ink)', lineHeight: 1.6, whiteSpace: 'pre-wrap', marginBottom: round.answers ? 8 : 0 }}>{round.questions}</p>
+                        {round.answers && (
+                          <div style={{ marginTop: 6, paddingTop: 6, borderTop: '1px solid var(--fog)' }}>
+                            <p style={{ fontFamily: 'var(--font-mono)', fontSize: 8, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--slate)', marginBottom: 4 }}>Customer response</p>
+                            <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'var(--slate)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{round.answers}</p>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )
+            })()}
+
             {/* Description */}
             <div style={{ background: 'var(--white)', border: '1px solid var(--fog)', borderRadius: 8, padding: '12px 14px' }}>
               <p style={{ fontFamily: 'var(--font-mono)', fontSize: 8, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--slate)', marginBottom: 8 }}>Description</p>
@@ -1303,10 +1347,68 @@ function AdminRequirementsTab() {
                   </ul>
                 )}
                 {spec.bcObjects?.length > 0 && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginTop: 8 }}>
-                    {spec.bcObjects.map((o: string, i: number) => (
-                      <span key={i} style={{ fontFamily: 'var(--font-mono)', fontSize: 10, background: 'var(--parchment)', border: '1px solid var(--fog)', borderRadius: 5, padding: '3px 8px', color: 'var(--slate)', display: 'inline-block' }}>{o}</span>
-                    ))}
+                  <div style={{ marginTop: 8 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                      <p style={{ fontFamily: 'var(--font-mono)', fontSize: 8, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--slate)', margin: 0 }}>BC Objects</p>
+                      <button
+                        onClick={() => setShowObjectEditor(e => !e)}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--jade)', letterSpacing: '0.08em' }}
+                      >
+                        {showObjectEditor ? '✕ Close editor' : '✏ Edit objects'}
+                      </button>
+                    </div>
+                    {showObjectEditor ? (
+                      <div style={{ background: 'rgba(10,92,70,0.04)', border: '1px solid rgba(10,92,70,0.2)', borderRadius: 7, padding: '12px 14px' }}>
+                        <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'var(--slate)', marginBottom: 10, lineHeight: 1.5 }}>
+                          Add or remove objects before generating the dev plan. Changes are saved to the spec.
+                        </p>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginBottom: 10 }}>
+                          {editableObjects.map((o, i) => (
+                            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <input
+                                value={o}
+                                onChange={e => setEditableObjects(prev => prev.map((x, j) => j === i ? e.target.value : x))}
+                                style={{ ...inputStyle, flex: 1, fontSize: 10, padding: '5px 8px', fontFamily: 'var(--font-mono)' }}
+                                onFocus={e => (e.target.style.borderColor = 'var(--forest)')}
+                                onBlur={e => (e.target.style.borderColor = 'var(--fog)')}
+                              />
+                              <button onClick={() => setEditableObjects(prev => prev.filter((_, j) => j !== i))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#A32D2D', fontSize: 14, padding: '2px 6px' }}>✕</button>
+                            </div>
+                          ))}
+                        </div>
+                        <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+                          <input
+                            placeholder="e.g. Table 36 Sales Header — add field 50100 Approval_Status"
+                            value={newObjectText}
+                            onChange={e => setNewObjectText(e.target.value)}
+                            onKeyDown={e => { if (e.key === 'Enter' && newObjectText.trim()) { setEditableObjects(prev => [...prev, newObjectText.trim()]); setNewObjectText('') }}}
+                            style={{ ...inputStyle, flex: 1, fontSize: 10, padding: '5px 8px', fontFamily: 'var(--font-mono)' }}
+                            onFocus={e => (e.target.style.borderColor = 'var(--forest)')}
+                            onBlur={e => (e.target.style.borderColor = 'var(--fog)')}
+                          />
+                          <button
+                            onClick={() => { if (newObjectText.trim()) { setEditableObjects(prev => [...prev, newObjectText.trim()]); setNewObjectText('') }}}
+                            style={{ ...btnStyle, padding: '5px 12px', fontSize: 11 }}
+                          >+ Add</button>
+                        </div>
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          <button
+                            onClick={async () => { await patch(selected.id, { bcObjects: editableObjects }); setShowObjectEditor(false) }}
+                            disabled={actionLoading}
+                            style={{ ...btnStyle, fontSize: 11 }}
+                          >
+                            Save to Spec
+                          </button>
+                          <button onClick={() => setShowObjectEditor(false)} style={{ ...btnStyle, background: 'var(--fog)', color: 'var(--ink)', fontSize: 11 }}>Cancel</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                        {spec.bcObjects.map((o: string, i: number) => (
+                          <span key={i} style={{ fontFamily: 'var(--font-mono)', fontSize: 10, background: 'var(--parchment)', border: '1px solid var(--fog)', borderRadius: 5, padding: '3px 8px', color: 'var(--slate)', display: 'inline-block' }}>{o}</span>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
                 {spec.questions?.length > 0 && (

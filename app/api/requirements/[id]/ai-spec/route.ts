@@ -115,14 +115,26 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   // Prefer new body answers; fall back to saved
   const answersToUse = bodyAnswers || savedAnswers
 
-  // Get previous spec's questions for Q&A formatting
+  // Get previous spec's questions + regeneration count
   let prevQuestions: string[] = []
+  let prevGenCount = 0
   try {
     if (req_data.aiSpec) {
       const prevSpec = JSON.parse(req_data.aiSpec)
       prevQuestions = prevSpec.questions ?? []
+      prevGenCount  = prevSpec._genCount ?? 0
     }
   } catch { /* ignore */ }
+
+  // Enforce 3-generation cap (only for non-superadmin)
+  const MAX_GENS = 3
+  if ((session.user as any).role !== 'superadmin' && prevGenCount >= MAX_GENS) {
+    return NextResponse.json({
+      error: `You have used all ${MAX_GENS} specification generations for this requirement. Please review the current spec and submit, or contact BespoxAI if you need further changes.`,
+      limitReached: true,
+      genCount: prevGenCount,
+    }, { status: 429 })
+  }
 
   // Format Q&A section for the AI prompt
   let qaSection = ''
@@ -173,20 +185,22 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     return NextResponse.json({ error: 'AI generation failed. Please try again.' }, { status: 500 })
   }
 
+  // Embed generation counter into spec before saving
+  const specWithMeta = { ...spec as object, _genCount: prevGenCount + 1 }
+
   // Persist spec + answers
-  // If structured QA was provided, store as JSON; otherwise store as-is
   const answersToSave = bodyQA
-    ? JSON.stringify(bodyQA)   // [{q, a}] structure
+    ? JSON.stringify(bodyQA)
     : answersToUse || undefined
 
   const updated = await (prisma as any).requirement.update({
     where: { id: params.id },
-    data: { aiSpec: JSON.stringify(spec), customerAnswers: answersToSave },
+    data: { aiSpec: JSON.stringify(specWithMeta), customerAnswers: answersToSave },
     include: {
       user:   { select: { name: true, email: true } },
       tenant: { select: { name: true } },
     },
   })
 
-  return NextResponse.json({ requirement: updated, spec })
+  return NextResponse.json({ requirement: updated, spec: specWithMeta, genCount: prevGenCount + 1, maxGens: MAX_GENS })
 }

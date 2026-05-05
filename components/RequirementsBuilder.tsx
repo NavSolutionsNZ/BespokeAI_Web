@@ -18,6 +18,7 @@ interface AiSpec {
   userStory: string; acceptanceCriteria: string[]; bcObjects: string[]
   complexity: 'Simple'|'Medium'|'Complex'; estimatedDays: number
   assumptions: string[]; questions: string[]; notes: string
+  _genCount?: number
 }
 
 interface QAPair { q: string; a: string }
@@ -60,6 +61,8 @@ function statusLabel(s:string) {
 }
 function priorityMeta(p:string) { return PRIORITIES.find(x=>x.value===p)??PRIORITIES[0] }
 function parseSpec(req:Requirement):AiSpec|null { try { return req.aiSpec?JSON.parse(req.aiSpec):null } catch { return null } }
+function getGenCount(req:Requirement):number { try { return req.aiSpec?JSON.parse(req.aiSpec)._genCount??0:0 } catch { return 0 } }
+const MAX_GENS = 3
 
 // Parse customerAnswers — could be JSON [{q,a}] or plain text
 function parseAnswers(raw:string|null): QAPair[]|string|null {
@@ -170,11 +173,12 @@ export default function RequirementsBuilder({ userRole, tenantId, bcConnected=fa
     try {
       const body: any = {}
       if (qaStructured && qaStructured.length > 0) {
-        body.qaStructured   = qaStructured
+        body.qaStructured    = qaStructured
         body.customerAnswers = qaStructured.map((p,i)=>`${i+1}. ${p.a}`).join('\n')
       }
       const res = await fetch(`/api/requirements/${req.id}/ai-spec`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
       const d   = await res.json()
+      if (res.status === 429) { setSpecErr(d.error); setGen(false); return }
       if (!res.ok) throw new Error(d.error)
       setReqs(prev=>prev.map(r=>r.id===req.id?d.requirement:r))
       setSelected(d.requirement)
@@ -496,14 +500,34 @@ export default function RequirementsBuilder({ userRole, tenantId, bcConnected=fa
                   <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16}}>
                     <div>
                       <label style={lbl}>AI-Generated Functional Spec</label>
-                      <div style={{display:'flex',gap:8,marginTop:4}}>
+                      <div style={{display:'flex',gap:8,marginTop:4,alignItems:'center'}}>
                         <span style={{fontFamily:'var(--font-mono)',fontSize:9,letterSpacing:'0.1em',textTransform:'uppercase',padding:'2px 8px',borderRadius:6,background:cxBg(spec.complexity),color:cxCol(spec.complexity),border:`1px solid ${cxBdr(spec.complexity)}`}}>{spec.complexity}</span>
                         <span style={{fontFamily:'var(--font-mono)',fontSize:9,color:'var(--slate)'}}>Est. {spec.estimatedDays} day{spec.estimatedDays!==1?'s':''}</span>
+                        {!isSuperadmin&&(()=>{
+                          const gc=getGenCount(req)
+                          const rem=MAX_GENS-gc
+                          return (
+                            <span style={{fontFamily:'var(--font-mono)',fontSize:8,color:rem===0?'#A32D2D':rem===1?'#C8952A':'var(--slate)',letterSpacing:'0.08em'}}>
+                              {rem===0?'✕ no regenerations left':`↺ ${rem} regeneration${rem!==1?'s':''} left`}
+                            </span>
+                          )
+                        })()}
                       </div>
                     </div>
-                    {(req.status==='draft'||req.status==='needs_clarification'||req.status==='quote_rejected'||isSuperadmin)&&(
-                      <button onClick={()=>generateSpec(req)} disabled={genSpec} style={{...sBTN,fontSize:11}}>{genSpec?'✦ Regenerating…':'↺ Regenerate'}</button>
-                    )}
+                    {(req.status==='draft'||req.status==='needs_clarification'||req.status==='quote_rejected'||isSuperadmin)&&(()=>{
+                      const gc=getGenCount(req)
+                      const atLimit=!isSuperadmin&&gc>=MAX_GENS
+                      return (
+                        <button
+                          onClick={()=>generateSpec(req)}
+                          disabled={genSpec||atLimit}
+                          title={atLimit?'Regeneration limit reached — submit your requirement or contact BespoxAI':'Regenerate spec'}
+                          style={{...sBTN,fontSize:11,opacity:atLimit?0.4:1,cursor:atLimit?'not-allowed':'pointer'}}
+                        >
+                          {genSpec?'✦ Regenerating…':'↺ Regenerate'}
+                        </button>
+                      )
+                    })()}
                   </div>
 
                   <div style={{display:'flex',flexDirection:'column',gap:16}}>
@@ -558,19 +582,23 @@ export default function RequirementsBuilder({ userRole, tenantId, bcConnected=fa
                                 />
                               </div>
                             ))}
-                            <div style={{display:'flex',gap:8,marginTop:4}}>
+                            <div style={{display:'flex',gap:8,marginTop:4}}>{(()=>{
+                              const gc=getGenCount(req)
+                              const atLimit=!isSuperadmin&&gc>=MAX_GENS
+                              return <>
                               <button
                                 onClick={()=>{
                                   const pairs:QAPair[] = spec.questions.map((q,i)=>({q,a:qaAnswers[i]??''}))
                                   generateSpec(req,pairs)
                                 }}
-                                disabled={genSpec||Object.keys(qaAnswers).length===0}
-                                style={{background:'#0A5C46',color:'var(--white)',border:'none',borderRadius:8,padding:'9px 18px',cursor:'pointer',fontFamily:'var(--font-body)',fontSize:13,fontWeight:500,opacity:Object.keys(qaAnswers).length===0?0.6:1}}
+                                disabled={genSpec||Object.keys(qaAnswers).length===0||atLimit}
+                                style={{background:atLimit?'var(--fog)':'#0A5C46',color:atLimit?'var(--slate)':'var(--white)',border:'none',borderRadius:8,padding:'9px 18px',cursor:atLimit?'not-allowed':'pointer',fontFamily:'var(--font-body)',fontSize:13,fontWeight:500,opacity:Object.keys(qaAnswers).length===0||atLimit?0.5:1}}
                               >
-                                {genSpec?'✦ Regenerating…':'✦ Regenerate with Answers'}
+                                {genSpec?'✦ Regenerating…':atLimit?'✕ Regeneration limit reached':'✦ Regenerate with Answers'}
                               </button>
                               <button onClick={()=>{setShowQAP(false);setQAAnswers({})}} style={sBTN}>Cancel</button>
-                            </div>
+                              </>
+                            })()}</div>
                             {specErr&&<p style={{color:'#A32D2D',fontSize:11,marginTop:6}}>{specErr}</p>}
                           </div>
                         ):(
@@ -601,6 +629,7 @@ export default function RequirementsBuilder({ userRole, tenantId, bcConnected=fa
                   <p style={{fontFamily:'var(--font-body)',fontSize:13,color:'var(--slate)',marginBottom:14,lineHeight:1.65}}>
                     Generate an AI spec. Our assistant acts as a senior BC consultant and developer — producing a user story, acceptance criteria, the exact BC objects affected, assumptions, and clarifying questions to refine scope before development starts.
                   </p>
+                  {!isSuperadmin&&<p style={{fontFamily:'var(--font-mono)',fontSize:9,color:'var(--slate)',marginBottom:10,letterSpacing:'0.08em'}}>You have {MAX_GENS} generation{MAX_GENS!==1?'s':''} — use them to refine the spec before submitting.</p>}
                   {specErr&&<p style={{color:'#A32D2D',fontSize:12,marginBottom:10}}>{specErr}</p>}
                   <button onClick={()=>generateSpec(req)} disabled={genSpec} style={{background:genSpec?'var(--fog)':'var(--ink)',color:'var(--cream)',border:'none',borderRadius:8,padding:'10px 22px',cursor:genSpec?'wait':'pointer',fontFamily:'var(--font-body)',fontSize:13,fontWeight:500}}>
                     {genSpec?'✦ Generating spec…':'✦ Generate AI Spec'}

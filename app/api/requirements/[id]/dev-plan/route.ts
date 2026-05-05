@@ -78,7 +78,7 @@ function extractTableNames(bcObjects: string[]): string[] {
       tables.push(name)
     }
   }
-  return [...new Set(tables)]
+  return Array.from(new Set(tables))
 }
 
 // ─── Map table name to OData entity ─────────────────────────────────────────

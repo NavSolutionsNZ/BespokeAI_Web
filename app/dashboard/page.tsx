@@ -192,10 +192,11 @@ function DashboardInner() {
 
   // ── Greeting ────────────────────────────────────────────────────────────────
 
-  const firstName  = user?.name?.split(' ')[0] ?? 'there'
-  const hour       = new Date().getHours()
-  const greeting   = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
-  const tenantName = user?.tenantName ?? 'Your Company'
+  const firstName   = user?.name?.split(' ')[0] ?? 'there'
+  const hour        = new Date().getHours()
+  const greeting    = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
+  const tenantName  = user?.tenantName ?? 'Your Company'
+  const isConnected = health.status === 'ok'
 
   // ── Query ───────────────────────────────────────────────────────────────────
 
@@ -576,10 +577,11 @@ function DashboardInner() {
             {/* Chat area */}
             {!tierBlocked && <div style={{ flex: 1, overflowY: 'auto', padding: '28px 32px' }}>
 
-              {/* Greeting state */}
+              {/* Greeting / overview state */}
               {history.length === 0 && (
-                <div style={{ maxWidth: 680, margin: '0 auto' }}>
-                  {/* AI opening message */}
+                <div style={{ maxWidth: 740, margin: '0 auto' }}>
+
+                  {/* AI opening message — connection-aware */}
                   <div style={{
                     background: 'var(--white)', border: '1px solid var(--fog)',
                     borderRadius: '2px 16px 16px 16px', padding: '20px 24px', marginBottom: 28,
@@ -597,18 +599,38 @@ function DashboardInner() {
                       </span>
                     </div>
                     <p style={{ fontFamily: 'var(--font-body)', fontSize: 14, color: 'var(--ink)', lineHeight: 1.7 }}>
-                      {greeting}, {firstName}. I&apos;m connected to{' '}
-                      <strong>{tenantName}</strong> and ready to answer questions about your finances.
-                      What would you like to know?
+                      {greeting}, {firstName}.{' '}
+                      {isConnected
+                        ? <>I&apos;m connected to <strong>{tenantName}</strong> and ready to answer questions about your finances. What would you like to know?</>
+                        : <>I&apos;m your BC financial assistant. Connect your Business Central instance to start querying your live data.</>
+                      }
                     </p>
                   </div>
 
-                  {/* Example queries */}
-                  <div style={{ marginBottom: 8 }}>
-                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'var(--slate)' }}>
-                      Suggested questions
-                    </span>
-                  </div>
+                  {/* Overview cards — only shown when connected */}
+                  {isConnected && <OverviewCards tenantName={tenantName} onQuery={(q) => { setQuestion(q); setTimeout(() => textareaRef.current?.focus(), 50) }} />}
+
+                  {/* Not connected — setup prompt */}
+                  {!isConnected && health.status !== 'checking' && (
+                    <div style={{ background: 'rgba(200,149,42,0.06)', border: '1px solid rgba(200,149,42,0.2)', borderRadius: 10, padding: '18px 20px', marginBottom: 24 }}>
+                      <p style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#9A6A00', marginBottom: 8 }}>🔌 Business Central not connected</p>
+                      <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'var(--ink)', lineHeight: 1.65, marginBottom: 10 }}>
+                        Your Business Central instance isn&apos;t reachable right now. Check that your Cloudflare tunnel is running and your agent is online.
+                      </p>
+                      <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: 'var(--slate)', lineHeight: 1.5 }}>
+                        You can still use <strong>Customisations</strong> to plan and request BC changes while the connection is restored.
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Suggested questions — only when connected */}
+                  {isConnected && (
+                    <>
+                      <div style={{ marginBottom: 8 }}>
+                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'var(--slate)' }}>
+                          Suggested questions
+                        </span>
+                      </div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                     {EXAMPLE_QUERIES.map(q => (
                       <button key={q}
@@ -626,6 +648,8 @@ function DashboardInner() {
                       </button>
                     ))}
                   </div>
+                  </>
+                  )}
                 </div>
               )}
 
@@ -1111,5 +1135,120 @@ function HealthScoreCard() {
         )
       })}
     </>
+  )
+}
+
+// ─── Overview Cards — live CFO snapshot ──────────────────────────────────────
+
+interface OverviewCard {
+  label: string
+  value: string
+  sub?:  string
+  color?: string
+  query: string  // the natural-language query to run on click
+}
+
+function OverviewCards({ tenantName, onQuery }: { tenantName: string; onQuery: (q: string) => void }) {
+  const [cards, setCards]     = useState<OverviewCard[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError]     = useState('')
+
+  useEffect(() => {
+    async function fetchOverview() {
+      setLoading(true)
+      try {
+        // Run four lightweight BC queries in parallel via the existing /api/query endpoint
+        const queries = [
+          { label: 'Overdue debtors',     question: 'Total overdue debtor balance today as a single dollar figure' },
+          { label: 'Cash & bank',         question: 'Total cash and bank balance right now as a single dollar figure' },
+          { label: 'Outstanding payables',question: 'Total outstanding payables balance today as a single dollar figure' },
+          { label: 'Month revenue',       question: 'Total revenue billed this month as a single dollar figure' },
+        ]
+
+        const results = await Promise.allSettled(
+          queries.map(q =>
+            fetch('/api/query', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ question: q.question, history: [] }),
+            }).then(r => r.json())
+          )
+        )
+
+        const built: OverviewCard[] = queries.map((q, i) => {
+          const result = results[i]
+          if (result.status === 'rejected') {
+            return { label: q.label, value: '—', sub: 'unavailable', query: q.question }
+          }
+          const data = result.value
+          // Extract KPI value from response
+          const kpi = data?.data?.kpis?.[0]
+          if (kpi) {
+            return { label: q.label, value: kpi.value, sub: kpi.subtext, query: q.question }
+          }
+          // Fallback — extract first number-like thing from answer text
+          const match = (data?.answer ?? '').match(/\$[\d,]+(\.\d+)?|[\d,]+(\.\d+)?\s*(million|thousand|k|m)?/i)
+          return {
+            label: q.label,
+            value: match ? match[0] : '—',
+            sub:   match ? undefined : 'no data',
+            query: q.question,
+          }
+        })
+
+        setCards(built)
+      } catch (e: any) {
+        setError(e.message)
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchOverview()
+  }, [tenantName])
+
+  if (error) return null  // silent fail — don't break the page
+
+  return (
+    <div style={{ marginBottom: 28 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'var(--slate)' }}>
+          Live snapshot · {tenantName}
+        </span>
+        {loading && <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--slate)', letterSpacing: '0.08em' }}>Loading…</span>}
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
+        {loading
+          ? Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} style={{ background: 'var(--white)', border: '1px solid var(--fog)', borderRadius: 10, padding: '16px 18px', minHeight: 76, animation: 'pulse 1.5s infinite' }} />
+            ))
+          : cards.map(card => (
+              <button
+                key={card.label}
+                onClick={() => onQuery(card.query)}
+                style={{
+                  background: 'var(--white)', border: '1px solid var(--fog)',
+                  borderRadius: 10, padding: '16px 18px', cursor: 'pointer',
+                  textAlign: 'left', transition: 'border-color 0.15s, box-shadow 0.15s',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(10,92,70,0.3)'; e.currentTarget.style.boxShadow = '0 2px 12px rgba(10,92,70,0.07)' }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--fog)'; e.currentTarget.style.boxShadow = 'none' }}
+              >
+                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 8, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--slate)', marginBottom: 8 }}>
+                  {card.label}
+                </div>
+                <div style={{ fontFamily: 'var(--font-display)', fontSize: 26, fontWeight: 400, color: card.value === '—' ? 'var(--fog)' : 'var(--ink)', lineHeight: 1, marginBottom: 4 }}>
+                  {card.value}
+                </div>
+                {card.sub && (
+                  <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--slate)', letterSpacing: '0.06em' }}>{card.sub}</div>
+                )}
+                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 8, color: 'rgba(10,92,70,0.4)', marginTop: 8, letterSpacing: '0.08em' }}>
+                  Click to explore →
+                </div>
+              </button>
+            ))
+        }
+      </div>
+    </div>
   )
 }

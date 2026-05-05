@@ -255,6 +255,14 @@ function LoginForm() {
           Your credentials are encrypted in transit.<br />
           BespoxAI uses delegated authentication — we never store your ERP password.
         </p>
+
+        {/* Signup link */}
+        <p style={{ textAlign: 'center', marginTop: 18, fontFamily: 'var(--font-body)', fontSize: 13, color: 'var(--slate)' }}>
+          New to BespoxAI?{' '}
+          <Link href="/signup" style={{ color: 'var(--forest)', textDecoration: 'none', fontWeight: 500 }}>
+            Request access →
+          </Link>
+        </p>
       </div>
 
       <style>{`

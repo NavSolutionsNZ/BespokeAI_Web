@@ -399,8 +399,8 @@ footer{padding:2.5rem 3rem;border-top:1px solid rgba(244,239,228,.06);display:fl
     <li><a>Pricing</a></li>
   </ul>
   <div class="nav-r">
-    <button class="btn-ns" onclick="gv('signin')">Sign In</button>
-    <button class="btn-np" onclick="gv('signin')">Free Data Scan →</button>
+    <button class="btn-ns" onclick="window.location.href='/login'">Sign In</button>
+    <button class="btn-np" onclick="window.location.href='/login'">Free Data Scan →</button>
   </div>
 </nav>
 
@@ -413,7 +413,7 @@ footer{padding:2.5rem 3rem;border-top:1px solid rgba(244,239,228,.06);display:fl
       <div>
         <p class="hero-desc">The only AI platform built by developers who understand CAL and AL at their deepest level. Natural language financial intelligence, automated data health scanning, and cash flow forecasting — for every BC and NAV customer, including those Microsoft Copilot cannot reach.</p>
         <div class="hero-actions">
-          <button class="btn-p" onclick="gv('signin')">Get a Free Data Scan</button>
+          <button class="btn-p" onclick="window.location.href='/login'">Get a Free Data Scan</button>
           <button class="btn-g">Watch 3-min demo</button>
         </div>
       </div>
@@ -569,7 +569,7 @@ footer{padding:2.5rem 3rem;border-top:1px solid rgba(244,239,228,.06);display:fl
     <div>
       <p class="roi-r-desc">Most customers see 4–8× ROI in year one. The first scan is free — and it typically finds problems costing more than our annual fee.</p>
       <div class="roi-hl"><div class="roi-hl-l">Typical first-year outcome</div><div class="roi-hl-v">$51–125k</div><div class="roi-hl-s">in quantified savings and working capital improvement</div></div>
-      <button class="roi-cta" onclick="gv('signin')">Get your free scan — see your numbers →</button>
+      <button class="roi-cta" onclick="window.location.href='/login'">Get your free scan — see your numbers →</button>
     </div>
   </div>
 </div>
@@ -596,7 +596,7 @@ footer{padding:2.5rem 3rem;border-top:1px solid rgba(244,239,228,.06);display:fl
     <div class="cta-title">Start with a<br><em>free scan.</em></div>
     <p class="cta-sub">We deploy the Data Health Scanner to your BC or NAV environment at no cost. You get a full scored report — before you spend a penny.</p>
     <div class="cta-acts">
-      <button class="btn-lg btn-forest" onclick="gv('signin')">Book a free data scan</button>
+      <button class="btn-lg btn-forest" onclick="window.location.href='/login'">Book a free data scan</button>
       <button class="btn-lg btn-outline">Download product overview</button>
     </div>
     <div class="cta-note">No commitment · No credit card · Works on BC SaaS, BC on-prem, and all NAV versions</div>
@@ -678,7 +678,7 @@ footer{padding:2.5rem 3rem;border-top:1px solid rgba(244,239,228,.06);display:fl
     </div>
     <div class="sb-footer">
       <div class="sb-user"><div class="sb-uav">SM</div><div><div class="sb-uname">Sarah Mitchell</div><div class="sb-urole">Chief Financial Officer</div></div></div>
-      <div class="sb-signout" onclick="gv('signin')">Sign out</div>
+      <div class="sb-signout" onclick="window.location.href='/login'">Sign out</div>
     </div>
   </div>
 
@@ -790,6 +790,7 @@ footer{padding:2.5rem 3rem;border-top:1px solid rgba(244,239,228,.06);display:fl
 
 <script>
 function gv(view) {
+  if (view === 'signin') { window.location.href = '/login'; return; }
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   document.getElementById('v-' + view).classList.add('active');
   window.scrollTo(0, 0);

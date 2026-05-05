@@ -629,7 +629,7 @@ export default function RequirementsBuilder({ userRole, tenantId, bcConnected=fa
                   <p style={{fontFamily:'var(--font-body)',fontSize:13,color:'var(--slate)',marginBottom:14,lineHeight:1.65}}>
                     Generate an AI spec. Our assistant acts as a senior BC consultant and developer — producing a user story, acceptance criteria, the exact BC objects affected, assumptions, and clarifying questions to refine scope before development starts.
                   </p>
-                  {!isSuperadmin&&<p style={{fontFamily:'var(--font-mono)',fontSize:9,color:'var(--slate)',marginBottom:10,letterSpacing:'0.08em'}}>You have {MAX_GENS} generation{MAX_GENS!==1?'s':''} — use them to refine the spec before submitting.</p>}
+                  {!isSuperadmin&&<p style={{fontFamily:'var(--font-mono)',fontSize:9,color:'var(--slate)',marginBottom:10,letterSpacing:'0.08em'}}>You have {MAX_GENS} generations — use them to refine the spec before submitting.</p>}
                   {specErr&&<p style={{color:'#A32D2D',fontSize:12,marginBottom:10}}>{specErr}</p>}
                   <button onClick={()=>generateSpec(req)} disabled={genSpec} style={{background:genSpec?'var(--fog)':'var(--ink)',color:'var(--cream)',border:'none',borderRadius:8,padding:'10px 22px',cursor:genSpec?'wait':'pointer',fontFamily:'var(--font-body)',fontSize:13,fontWeight:500}}>
                     {genSpec?'✦ Generating spec…':'✦ Generate AI Spec'}

@@ -73,6 +73,35 @@ Rules:
 - Complexity: Simple (1–3d), Medium (4–10d), Complex (10+d)`
 }
 
+// ── JSON repair — close unclosed JSON structures from truncated responses ────
+function repairJSON(raw: string): string {
+  // Remove any trailing partial key or value
+  let s = raw.trim()
+  // Remove trailing comma before closing
+  s = s.replace(/,\s*$/, '')
+
+  // Count open braces/brackets and close them
+  const stack: string[] = []
+  let inString = false
+  let escape   = false
+
+  for (const ch of s) {
+    if (escape)          { escape = false; continue }
+    if (ch === '\\')    { escape = true; continue }
+    if (ch === '"')      { inString = !inString; continue }
+    if (inString)        continue
+    if (ch === '{')      stack.push('}')
+    else if (ch === '[') stack.push(']')
+    else if (ch === '}' || ch === ']') stack.pop()
+  }
+
+  // Close any open string first
+  if (inString) s += '"'
+
+  // Append missing closing chars in reverse
+  return s + stack.reverse().join('')
+}
+
 // POST /api/requirements/[id]/ai-spec
 export async function POST(
   req: NextRequest,
@@ -247,17 +276,38 @@ Notes: ${prevSpec.notes ?? ''}`
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o',
       temperature: 0.2,
+      max_tokens: 4096,
       messages: [
         { role: 'system', content: buildSystemPrompt(bcVersion, isRefinement) },
         { role: 'user',   content: prompt },
       ],
     })
-    const raw     = completion.choices[0]?.message?.content ?? '{}'
+    const raw     = completion.choices[0]?.message?.content ?? ''
+    if (!raw) throw new Error('Empty response from AI')
+
     const cleaned = raw.replace(/^```[a-z]*\n?/i, '').replace(/\n?```$/, '').trim()
-    spec = JSON.parse(cleaned)
-  } catch (err) {
+
+    // Try direct parse first, then attempt repair if truncated
+    let parsed: any = null
+    try {
+      parsed = JSON.parse(cleaned)
+    } catch {
+      console.warn('JSON parse failed — attempting repair of truncated response')
+      try {
+        parsed = JSON.parse(repairJSON(cleaned))
+        console.info('JSON repair succeeded')
+      } catch (repairErr) {
+        console.error('JSON repair also failed:', repairErr)
+        console.error('Raw response (first 500 chars):', raw.slice(0, 500))
+        throw new Error('AI returned malformed JSON. Please try again — if this persists, simplify your description.')
+      }
+    }
+    spec = parsed
+  } catch (err: any) {
     console.error('AI spec generation failed:', err)
-    return NextResponse.json({ error: 'AI generation failed. Please try again.' }, { status: 500 })
+    return NextResponse.json({
+      error: err.message ?? 'AI generation failed. Please try again.',
+    }, { status: 500 })
   }
 
   // ── Accumulate refinement history ────────────────────────────────────────

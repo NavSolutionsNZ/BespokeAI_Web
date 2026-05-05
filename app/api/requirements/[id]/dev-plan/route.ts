@@ -144,6 +144,24 @@ Rules:
 - suggestedDailyRate in NZD ($1000-$1500/day typical)
 - totalEstimatedHours: sum tasks + 15-20% contingency`
 
+// Repair truncated JSON
+function repairDevPlanJSON(raw: string): string {
+  let s = raw.trim().replace(/,\s*$/, '')
+  const stack: string[] = []
+  let inString = false, escape = false
+  for (const ch of s) {
+    if (escape) { escape = false; continue }
+    if (ch === '\\') { escape = true; continue }
+    if (ch === '"') { inString = !inString; continue }
+    if (inString) continue
+    if (ch === '{') stack.push('}')
+    else if (ch === '[') stack.push(']')
+    else if (ch === '}' || ch === ']') stack.pop()
+  }
+  if (inString) s += '"'
+  return s + stack.reverse().join('')
+}
+
 // POST /api/requirements/[id]/dev-plan — SUPERADMIN ONLY
 export async function POST(
   _req: NextRequest,
@@ -303,17 +321,25 @@ export async function POST(
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o',
       temperature: 0.2,
+      max_tokens: 4096,
       messages: [
         { role: 'system', content: DEV_PLAN_SYSTEM },
         { role: 'user',   content: prompt },
       ],
     })
-    const raw     = completion.choices[0]?.message?.content ?? '{}'
+    const raw     = completion.choices[0]?.message?.content ?? ''
+    if (!raw) throw new Error('Empty response from AI')
     const cleaned = raw.replace(/^```[a-z]*\n?/i, '').replace(/\n?```$/, '').trim()
-    plan = JSON.parse(cleaned)
-  } catch (err) {
+    try {
+      plan = JSON.parse(cleaned)
+    } catch {
+      // Attempt repair of truncated JSON
+      const repaired = repairDevPlanJSON(cleaned)
+      plan = JSON.parse(repaired)
+    }
+  } catch (err: any) {
     console.error('Dev plan generation failed:', err)
-    return NextResponse.json({ error: 'AI generation failed. Please try again.' }, { status: 500 })
+    return NextResponse.json({ error: err.message ?? 'AI generation failed. Please try again.' }, { status: 500 })
   }
 
   // Store plan + which tables were introspected for audit

@@ -151,6 +151,8 @@ export default function RequirementsBuilder({ userRole, tenantId, bcConnected=fa
       selectReq(d.requirement)
       setShowCreate(false)
       setForm({title:'',description:'',bcArea:'Finance',priority:'important'})
+      // Auto-generate spec immediately — no button click needed
+      generateSpec(d.requirement)
     } catch(e:any) { setFE(e.message) }
     finally { setSaving(false) }
   }
@@ -347,7 +349,7 @@ export default function RequirementsBuilder({ userRole, tenantId, bcConnected=fa
             </div>
             {formErr&&<p style={{fontFamily:'var(--font-body)',fontSize:12,color:'#A32D2D'}}>{formErr}</p>}
             <div style={{display:'flex',gap:10}}>
-              <button onClick={createReq} disabled={saving} style={{...pBTN,opacity:saving?0.7:1}}>{saving?'Saving…':'Save as Draft'}</button>
+              <button onClick={createReq} disabled={saving} style={{...pBTN,opacity:saving?0.7:1}}>{saving?'Saving…':'Save & Generate Spec →'}</button>
               <button onClick={()=>setShowCreate(false)} style={sBTN}>Cancel</button>
             </div>
           </>}
@@ -739,15 +741,26 @@ export default function RequirementsBuilder({ userRole, tenantId, bcConnected=fa
                 </div>
               ):(
                 <div style={{...crd,textAlign:'center',padding:'22px 20px'}}>
-                  <div style={{fontSize:28,marginBottom:10}}>✦</div>
-                  <p style={{fontFamily:'var(--font-body)',fontSize:13,color:'var(--slate)',marginBottom:14,lineHeight:1.65}}>
-                    Generate an AI spec. Our assistant acts as a senior BC consultant and developer — producing a user story, acceptance criteria, the exact BC objects affected, assumptions, and clarifying questions to refine scope before development starts.
-                  </p>
-                  {!isSuperadmin&&<p style={{fontFamily:'var(--font-mono)',fontSize:9,color:'var(--slate)',marginBottom:10,letterSpacing:'0.08em'}}>You have {MAX_GENS} generations — use them to refine the spec before submitting.</p>}
-                  {specErr&&<p style={{color:'#A32D2D',fontSize:12,marginBottom:10}}>{specErr}</p>}
-                  <button onClick={()=>generateSpec(req)} disabled={genSpec} style={{background:genSpec?'var(--fog)':'var(--ink)',color:'var(--cream)',border:'none',borderRadius:8,padding:'10px 22px',cursor:genSpec?'wait':'pointer',fontFamily:'var(--font-body)',fontSize:13,fontWeight:500}}>
-                    {genSpec?'✦ Generating spec…':'✦ Generate AI Spec'}
-                  </button>
+                  {genSpec ? (
+                    <>
+                      <div style={{fontSize:28,marginBottom:10}}>✦</div>
+                      <p style={{fontFamily:'var(--font-mono)',fontSize:11,color:'var(--forest)',letterSpacing:'0.1em',marginBottom:6}}>Generating AI spec…</p>
+                      <p style={{fontFamily:'var(--font-body)',fontSize:12,color:'var(--slate)',lineHeight:1.6}}>
+                        Analysing your requirement as a senior BC consultant. This takes 10–20 seconds.
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <div style={{fontSize:28,marginBottom:10}}>✦</div>
+                      <p style={{fontFamily:'var(--font-body)',fontSize:13,color:'var(--slate)',marginBottom:14,lineHeight:1.65}}>
+                        No spec generated yet. This can happen if generation failed on creation.
+                      </p>
+                      {specErr&&<p style={{color:'#A32D2D',fontSize:12,marginBottom:10}}>{specErr}</p>}
+                      <button onClick={()=>generateSpec(req)} style={{background:'var(--ink)',color:'var(--cream)',border:'none',borderRadius:8,padding:'10px 22px',cursor:'pointer',fontFamily:'var(--font-body)',fontSize:13,fontWeight:500}}>
+                        ↺ Retry Generation
+                      </button>
+                    </>
+                  )}
                 </div>
               )}
 

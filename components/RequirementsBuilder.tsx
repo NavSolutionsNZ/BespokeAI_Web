@@ -62,7 +62,7 @@ function statusLabel(s:string) {
 function priorityMeta(p:string) { return PRIORITIES.find(x=>x.value===p)??PRIORITIES[0] }
 function parseSpec(req:Requirement):AiSpec|null { try { return req.aiSpec?JSON.parse(req.aiSpec):null } catch { return null } }
 function getGenCount(req:Requirement):number { try { return req.aiSpec?JSON.parse(req.aiSpec)._genCount??0:0 } catch { return 0 } }
-const MAX_GENS = 3
+const MAX_GENS = 4
 
 // Parse customerAnswers — could be JSON [{q,a}] or plain text
 function parseAnswers(raw:string|null): QAPair[]|string|null {
@@ -95,6 +95,11 @@ export default function RequirementsBuilder({ userRole, tenantId, bcConnected=fa
   // Per-question answer state: { [questionIndex]: answerText }
   const [qaAnswers, setQAAnswers]   = useState<Record<number,string>>({})
   const [showQAPanel, setShowQAP]   = useState(false)
+  // Refinement panel — customer edits to drive next regeneration
+  const [showRefine, setShowRefine]         = useState(false)
+  const [refinementText, setRefinementText] = useState('')
+  const [editedUserStory, setEditedUS]      = useState('')
+  const [editedCriteria, setEditedCrit]     = useState<string[]>([])
 
   const [actLoading, setAL]       = useState(false)
   const [showQF, setShowQF]       = useState(false)
@@ -128,6 +133,7 @@ export default function RequirementsBuilder({ userRole, tenantId, bcConnected=fa
   function selectReq(req:Requirement) {
     setSelected(req); setShowCreate(false)
     setShowQAP(false); setQAAnswers({})
+    setShowRefine(false); setRefinementText(''); setEditedUS(''); setEditedCrit([])
     setAAD(''); setShowSB(false); setShowQF(false)
     setSpecErr(''); setShowRQ(false); setRejectReason('')
     setRF({title:req.title,description:req.description,bcArea:req.bcArea,priority:req.priority,extraContext:''})
@@ -168,7 +174,11 @@ export default function RequirementsBuilder({ userRole, tenantId, bcConnected=fa
     if (selected?.id===id) setSelected(null)
   }
 
-  async function generateSpec(req:Requirement, qaStructured?:QAPair[]) {
+  async function generateSpec(
+    req: Requirement,
+    qaStructured?: QAPair[],
+    refinements?: { text?: string; userStory?: string; criteria?: string[] }
+  ) {
     setGen(true); setSpecErr('')
     try {
       const body: any = {}
@@ -176,6 +186,9 @@ export default function RequirementsBuilder({ userRole, tenantId, bcConnected=fa
         body.qaStructured    = qaStructured
         body.customerAnswers = qaStructured.map((p,i)=>`${i+1}. ${p.a}`).join('\n')
       }
+      if (refinements?.text)     body.customerRefinements = refinements.text
+      if (refinements?.userStory) body.editedUserStory    = refinements.userStory
+      if (refinements?.criteria?.length) body.editedCriteria = refinements.criteria
       const res = await fetch(`/api/requirements/${req.id}/ai-spec`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
       const d   = await res.json()
       if (res.status === 429) { setSpecErr(d.error); setGen(false); return }
@@ -183,6 +196,7 @@ export default function RequirementsBuilder({ userRole, tenantId, bcConnected=fa
       setReqs(prev=>prev.map(r=>r.id===req.id?d.requirement:r))
       setSelected(d.requirement)
       setShowQAP(false); setQAAnswers({})
+      setShowRefine(false); setRefinementText(''); setEditedUS(''); setEditedCrit([])
     } catch(e:any) { setSpecErr(e.message) }
     finally { setGen(false) }
   }
@@ -517,22 +531,101 @@ export default function RequirementsBuilder({ userRole, tenantId, bcConnected=fa
                     {(req.status==='draft'||req.status==='needs_clarification'||req.status==='quote_rejected'||isSuperadmin)&&(()=>{
                       const gc=getGenCount(req)
                       const atLimit=!isSuperadmin&&gc>=MAX_GENS
-                      return (
+                      return atLimit ? (
+                        <span style={{fontFamily:'var(--font-mono)',fontSize:8,color:'#A32D2D',letterSpacing:'0.08em'}}>✕ limit reached — submit or contact BespoxAI</span>
+                      ) : (
                         <button
-                          onClick={()=>generateSpec(req)}
-                          disabled={genSpec||atLimit}
-                          title={atLimit?'Regeneration limit reached — submit your requirement or contact BespoxAI':'Regenerate spec'}
-                          style={{...sBTN,fontSize:11,opacity:atLimit?0.4:1,cursor:atLimit?'not-allowed':'pointer'}}
+                          onClick={()=>{
+                            setShowRefine(true)
+                            setEditedUS(spec.userStory ?? '')
+                            setEditedCrit([...(spec.acceptanceCriteria ?? [])])
+                          }}
+                          disabled={genSpec}
+                          style={{...sBTN,fontSize:11}}
                         >
-                          {genSpec?'✦ Regenerating…':'↺ Regenerate'}
+                          ✏ Refine &amp; Regenerate
                         </button>
                       )
                     })()}
                   </div>
 
+                  {/* Refinement panel */}
+                  {showRefine&&!isSuperadmin&&(()=>{
+                    const gc=getGenCount(req)
+                    const remsAfter=MAX_GENS-(gc+1)
+                    return (
+                      <div style={{background:'rgba(10,92,70,0.04)',border:'1px solid rgba(10,92,70,0.2)',borderRadius:8,padding:'16px 18px',marginTop:4}}>
+                        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
+                          <span style={{fontFamily:'var(--font-mono)',fontSize:9,letterSpacing:'0.12em',textTransform:'uppercase',color:'var(--forest)'}}>✏ Refine this spec</span>
+                          <span style={{fontFamily:'var(--font-mono)',fontSize:8,color:'var(--slate)'}}>
+                            {remsAfter>=0?`${remsAfter} regeneration${remsAfter!==1?'s':''} remaining after this`:'last regeneration'}
+                          </span>
+                        </div>
+                        <p style={{fontFamily:'var(--font-body)',fontSize:12,color:'var(--slate)',marginBottom:14,lineHeight:1.55}}>
+                          Describe what you want changed, edit the user story, or update the acceptance criteria. All context from previous generations is carried forward — only describe what's different.
+                        </p>
+
+                        <div style={{display:'flex',flexDirection:'column',gap:12}}>
+                          <div>
+                            <label style={lbl}>What to change <span style={{color:'var(--slate)',fontWeight:400,textTransform:'none',letterSpacing:0}}>(describe in plain English)</span></label>
+                            <textarea
+                              placeholder={'e.g. The approval threshold should be $10,000 not $5,000. Also we need the approved orders to automatically email the vendor, not just change status in BC. Remove the CFO approval level — just one approver.'}
+                              value={refinementText}
+                              onChange={e=>setRefinementText(e.target.value)}
+                              rows={4}
+                              style={{...iSt,resize:'vertical',lineHeight:1.65}}
+                              onFocus={fo} onBlur={bl}
+                            />
+                          </div>
+                          <div>
+                            <label style={lbl}>Edit user story</label>
+                            <textarea
+                              value={editedUserStory}
+                              onChange={e=>setEditedUS(e.target.value)}
+                              rows={2}
+                              style={{...iSt,resize:'vertical',lineHeight:1.55,fontStyle:'italic'}}
+                              onFocus={fo} onBlur={bl}
+                            />
+                          </div>
+                          <div>
+                            <label style={lbl}>Edit acceptance criteria <span style={{color:'var(--slate)',fontWeight:400,textTransform:'none',letterSpacing:0}}>(one per line)</span></label>
+                            <textarea
+                              value={editedCriteria.join('\n')}
+                              onChange={e=>setEditedCrit(e.target.value.split('\n'))}
+                              rows={Math.max(3,editedCriteria.length+1)}
+                              style={{...iSt,resize:'vertical',lineHeight:1.65}}
+                              onFocus={fo} onBlur={bl}
+                            />
+                          </div>
+                          <div style={{display:'flex',gap:8}}>
+                            <button
+                              onClick={()=>generateSpec(req,undefined,{text:refinementText,userStory:editedUserStory,criteria:editedCriteria.filter(c=>c.trim())})}
+                              disabled={genSpec||(!refinementText.trim()&&!editedUserStory.trim()&&editedCriteria.filter(c=>c.trim()).length===0)}
+                              style={{...pBTN,opacity:(!refinementText.trim()&&!editedUserStory.trim())?0.6:1}}
+                            >
+                              {genSpec?'✦ Regenerating…':'✦ Regenerate from Changes'}
+                            </button>
+                            <button onClick={()=>{setShowRefine(false);setRefinementText('');setEditedUS(spec.userStory??'');setEditedCrit([...(spec.acceptanceCriteria??[])])}} style={sBTN}>Cancel</button>
+                          </div>
+                          {specErr&&<p style={{color:'#A32D2D',fontSize:11}}>{specErr}</p>}
+                        </div>
+                      </div>
+                    )
+                  })()}
+
                   <div style={{display:'flex',flexDirection:'column',gap:16}}>
                     <Sect title="User Story">
                       <p style={{fontFamily:'var(--font-body)',fontSize:13,color:'var(--ink)',lineHeight:1.7,fontStyle:'italic'}}>{spec.userStory}</p>
+                      {spec._refinementHistory?.length>0&&(
+                        <div style={{marginTop:8,paddingTop:8,borderTop:'1px solid var(--fog)'}}>
+                          <p style={{fontFamily:'var(--font-mono)',fontSize:8,letterSpacing:'0.1em',textTransform:'uppercase',color:'var(--slate)',marginBottom:5}}>Refinement history</p>
+                          <div style={{display:'flex',flexDirection:'column',gap:2}}>
+                            {spec._refinementHistory.map((h:string,i:number)=>(
+                              <span key={i} style={{fontFamily:'var(--font-mono)',fontSize:9,color:'rgba(59,82,73,0.5)'}}>v{i+2}: {h}</span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </Sect>
 
                     <Sect title="Acceptance Criteria">

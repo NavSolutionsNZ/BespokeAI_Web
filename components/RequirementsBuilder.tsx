@@ -19,6 +19,7 @@ interface AiSpec {
   complexity: 'Simple'|'Medium'|'Complex'; estimatedDays: number
   assumptions: string[]; questions: string[]; notes: string
   _genCount?: number
+  _refinementHistory?: string[]
 }
 
 interface QAPair { q: string; a: string }

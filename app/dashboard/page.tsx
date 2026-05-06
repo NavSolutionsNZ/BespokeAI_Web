@@ -403,6 +403,24 @@ function DashboardInner() {
           </div>
         )}
 
+        {/* Upgrade / billing link — non-superadmin only */}
+        {user?.role !== 'superadmin' && (
+          <div style={{ padding: '4px 10px 0' }}>
+            <button onClick={() => router.push('/billing')} style={{
+              width: '100%', display: 'flex', alignItems: 'center', gap: 10,
+              padding: '9px 10px', borderRadius: 8, border: 'none',
+              background: 'transparent', cursor: 'pointer', textAlign: 'left',
+              transition: 'background 0.15s',
+            }}
+              onMouseEnter={e => (e.currentTarget.style.background = 'rgba(200,149,42,0.08)')}
+              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+            >
+              <span style={{ fontSize: 13 }}>⭐</span>
+              <span style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'rgba(200,149,42,0.7)' }}>Upgrade / Billing</span>
+            </button>
+          </div>
+        )}
+
         {/* Query history */}
         {queryLogs.length > 0 && (
           <div style={{ padding: '12px 10px 0', borderTop: '1px solid rgba(255,255,255,0.06)', marginTop: 8 }}>

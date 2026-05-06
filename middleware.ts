@@ -63,5 +63,7 @@ export const config = {
     '/api/signup/:path*',
     '/api/signup',
     '/api/webhooks/stripe',
+    '/billing/:path*',
+    '/api/billing/:path*',
   ],
 }

@@ -18,8 +18,9 @@ interface AiSpec {
   userStory: string; acceptanceCriteria: string[]; bcObjects: string[]
   complexity: 'Simple'|'Medium'|'Complex'; estimatedDays: number
   assumptions: string[]; questions: string[]; notes: string
+  _changeSummary?: string
   _genCount?: number
-  _refinementHistory?: string[]
+  _history?: Array<{ at: string; trigger: string; summary: string; snapshot: any }>
 }
 
 interface QAPair { q: string; a: string }
@@ -639,12 +640,12 @@ export default function RequirementsBuilder({ userRole, tenantId, bcConnected=fa
                   <div style={{display:'flex',flexDirection:'column',gap:16}}>
                     <Sect title="User Story">
                       <p style={{fontFamily:'var(--font-body)',fontSize:13,color:'var(--ink)',lineHeight:1.7,fontStyle:'italic'}}>{spec.userStory}</p>
-                      {(spec._refinementHistory?.length ?? 0)>0&&(
+                      {(spec._history?.length ?? 0)>0&&(
                         <div style={{marginTop:8,paddingTop:8,borderTop:'1px solid var(--fog)'}}>
-                          <p style={{fontFamily:'var(--font-mono)',fontSize:8,letterSpacing:'0.1em',textTransform:'uppercase',color:'var(--slate)',marginBottom:5}}>Refinement history</p>
+                          <p style={{fontFamily:'var(--font-mono)',fontSize:8,letterSpacing:'0.1em',textTransform:'uppercase',color:'var(--slate)',marginBottom:5}}>Version history</p>
                           <div style={{display:'flex',flexDirection:'column',gap:2}}>
-                            {(spec._refinementHistory ?? []).map((h:string,i:number)=>(
-                              <span key={i} style={{fontFamily:'var(--font-mono)',fontSize:9,color:'rgba(59,82,73,0.5)'}}>v{i+2}: {h}</span>
+                            {(spec._history ?? []).map((h,i)=>(
+                              <span key={i} style={{fontFamily:'var(--font-mono)',fontSize:9,color:'rgba(59,82,73,0.5)'}}>v{i+1}: {h.trigger} — {new Date(h.at).toLocaleDateString()}</span>
                             ))}
                           </div>
                         </div>

@@ -4,15 +4,16 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/db'
 import OpenAI from 'openai'
 
-export const dynamic = 'force-dynamic'
+export const dynamic   = 'force-dynamic'
 export const maxDuration = 60
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
-
 const MAX_GENS = 4  // 1 initial + 3 customer-driven refinements
 
-function buildSystemPrompt(bcVersion: string, isRefinement: boolean) {
-  const baseExpertise = `You are a senior Microsoft Dynamics 365 Business Central / Navision (NAV) expert with 20+ years of experience as both a functional consultant and a developer. You have deep hands-on knowledge of:
+// ── System prompt ─────────────────────────────────────────────────────────────
+
+function buildSystemPrompt(bcVersion: string) {
+  return `You are a senior Microsoft Dynamics 365 Business Central / Navision (NAV) expert with 20+ years of experience as both a functional consultant and a developer. You have deep hands-on knowledge of:
 - BC/NAV object model: Tables, Pages, Codeunits, Reports, XMLports, Queries, Enums, Interfaces
 - AL language development, extensions, AppSource publishing
 - Business Central versions from NAV 2009 through BC SaaS (v15–25) and BC 14 on-premise
@@ -20,33 +21,22 @@ function buildSystemPrompt(bcVersion: string, isRefinement: boolean) {
 - Customisation patterns: approval workflows, custom fields, posting routines, integrations, report layouts, dimensions, posting groups, number series
 - NZ/AU localisation: GST, PEPPOL e-invoicing, bank reconciliation, IRD requirements
 
-The customer is running: **${bcVersion}**`
+The customer is running: **${bcVersion}**
 
-  const refinementInstructions = isRefinement ? `
+SPEC GENERATION RULES:
+You are producing a COMPLETE, AUTHORITATIVE functional specification. This is always a FULL REWRITE — not a patch of a previous version.
 
-REFINEMENT MODE: You are updating an existing functional spec based on the customer's specific requested changes. You MUST:
-- Apply every change the customer explicitly requested — do not ignore or soften their edits
-- Carry forward ALL context from the previous spec (objects, criteria, assumptions) unless specifically overridden by the changes
-- Update bcObjects, acceptanceCriteria, estimatedDays, and complexity to reflect the changes
-- If the customer edited the user story or acceptance criteria directly, use their wording as the authoritative version
-- Admin/consultant Q&A rounds carry extra weight — incorporate those answers directly into bcObjects and acceptanceCriteria
-- Reduce the questions list — only ask about things genuinely still unclear after ALL Q&A rounds (AI questions AND admin questions)
-- Note in assumptions what changed from the previous version` : `
+You will be given all available context: the original description, every round of Q&A, admin/consultant questions and answers, and any customer-requested changes. Your job is to synthesise ALL of this into a single, coherent, up-to-date specification that reflects the current understanding of the requirement.
 
-INITIAL SPEC MODE: Analyse the plain-English customisation request and:
-1. Produce a professional functional specification with exact BC objects
-2. State your assumptions explicitly  
-3. Ask targeted clarifying questions for anything that would materially change scope`
+Do NOT reference previous versions or say "as before". The output must stand alone as the definitive spec.
 
-  return `${baseExpertise}${refinementInstructions}
-
-Be specific to ${bcVersion}. Reference exact standard objects (Table 36, Page 42, Codeunit 80 etc). For older NAV versions reference C/AL; for BC14+ reference AL extensions.
+For the _changeSummary field: briefly describe what is new or different in this version compared to what was originally described (e.g. "Added prerelease customer flag after admin Q&A. Extended validation to quotes and invoices."). For the initial generation, set this to "Initial specification".
 
 Respond ONLY with valid JSON — no markdown, no preamble:
 {
   "userStory": "As a [specific role], I want [specific capability] so that [measurable business value].",
   "acceptanceCriteria": [
-    "Given [context], when [action], then [specific measurable outcome with figures if provided].",
+    "Given [context], when [action], then [specific measurable outcome].",
     "..."
   ],
   "bcObjects": [
@@ -56,53 +46,47 @@ Respond ONLY with valid JSON — no markdown, no preamble:
   "complexity": "Simple",
   "estimatedDays": 3,
   "assumptions": [
-    "What was assumed (or what changed from previous version)",
+    "Explicit assumption about scope or behaviour",
     "..."
   ],
   "questions": [
-    "Only questions still genuinely unanswered after all context",
+    "Only questions genuinely still unanswered after ALL context provided",
     "..."
   ],
-  "notes": "Technical notes specific to ${bcVersion}. Version-specific gotchas, recommended patterns."
+  "notes": "Technical notes specific to ${bcVersion}. Version-specific gotchas, recommended patterns.",
+  "_changeSummary": "What is new or different in this version"
 }
 
 Rules:
-- Generate 3–6 acceptance criteria (Given/When/Then)
-- assumptions: include what changed from previous spec if this is a refinement
-- questions: only what is genuinely still unclear — aim to reduce these with each refinement
-- Complexity: Simple (1–3d), Medium (4–10d), Complex (10+d)`
+- Generate 3–6 acceptance criteria (Given/When/Then format)
+- Reduce questions with each generation — only include what is genuinely still unclear
+- Complexity: Simple (1–3d), Medium (4–10d), Complex (10+d)
+- Be specific to ${bcVersion} — reference exact standard objects (Table 36, Page 42, Codeunit 80 etc)
+- For NAV versions reference C/AL; for BC14+ reference AL extensions`
 }
 
-// ── JSON repair — close unclosed JSON structures from truncated responses ────
-function repairJSON(raw: string): string {
-  // Remove any trailing partial key or value
-  let s = raw.trim()
-  // Remove trailing comma before closing
-  s = s.replace(/,\s*$/, '')
+// ── JSON repair ───────────────────────────────────────────────────────────────
 
-  // Count open braces/brackets and close them
+function repairJSON(raw: string): string {
+  let s = raw.trim().replace(/,\s*$/, '')
   const stack: string[] = []
   let inString = false
   let escape   = false
-
   for (const ch of s) {
-    if (escape)          { escape = false; continue }
-    if (ch === '\\')    { escape = true; continue }
-    if (ch === '"')      { inString = !inString; continue }
-    if (inString)        continue
-    if (ch === '{')      stack.push('}')
+    if (escape)        { escape = false; continue }
+    if (ch === '\\')   { escape = true; continue }
+    if (ch === '"')    { inString = !inString; continue }
+    if (inString)      continue
+    if (ch === '{')    stack.push('}')
     else if (ch === '[') stack.push(']')
     else if (ch === '}' || ch === ']') stack.pop()
   }
-
-  // Close any open string first
   if (inString) s += '"'
-
-  // Append missing closing chars in reverse
   return s + stack.reverse().join('')
 }
 
-// POST /api/requirements/[id]/ai-spec
+// ── POST /api/requirements/[id]/ai-spec ──────────────────────────────────────
+
 export async function POST(
   req: NextRequest,
   { params }: { params: { id: string } }
@@ -120,7 +104,7 @@ export async function POST(
   if (user.role !== 'superadmin' && req_data.tenantId !== user.tenantId)
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  // ── BC version lookup ────────────────────────────────────────────────────
+  // ── BC version ────────────────────────────────────────────────────────────
   let bcVersion = 'Business Central (version not specified)'
   try {
     const signup = await (prisma as any).signupRequest.findFirst({
@@ -142,36 +126,34 @@ export async function POST(
     }
   } catch { /* use default */ }
 
-  // ── Parse request body ───────────────────────────────────────────────────
+  // ── Parse request body ────────────────────────────────────────────────────
   let bodyQA: Array<{q: string; a: string}> | null = null
-  let customerRefinements = ''   // free-text changes the customer wants made
-  let editedUserStory    = ''   // if customer directly edited the user story
-  let editedCriteria: string[] = []  // if customer edited acceptance criteria
+  let customerRefinements = ''
+  let editedUserStory     = ''
+  let editedCriteria: string[] = []
 
   try {
-    const body = await req.json()
+    const body          = await req.json()
     bodyQA              = body.qaStructured ?? null
     customerRefinements = body.customerRefinements ?? ''
     editedUserStory     = body.editedUserStory ?? ''
     editedCriteria      = body.editedCriteria ?? []
   } catch { /* no body */ }
 
-  // ── Read previous spec state ─────────────────────────────────────────────
+  // ── Read previous spec ────────────────────────────────────────────────────
   let prevGenCount = 0
   let prevSpec: any = null
-  let prevQuestions: string[] = []
-  let prevHistory: string[] = []  // accumulated refinement history
+  let prevHistory: Array<{ at: string; trigger: string; summary: string; snapshot: any }> = []
 
   try {
     if (req_data.aiSpec) {
-      prevSpec      = JSON.parse(req_data.aiSpec)
-      prevGenCount  = prevSpec._genCount ?? 0
-      prevQuestions = prevSpec.questions ?? []
-      prevHistory   = prevSpec._refinementHistory ?? []
+      prevSpec     = JSON.parse(req_data.aiSpec)
+      prevGenCount = prevSpec._genCount ?? 0
+      prevHistory  = prevSpec._history  ?? []
     }
   } catch { /* ignore */ }
 
-  // ── Enforce generation cap (non-superadmin only) ─────────────────────────
+  // ── Generation cap ────────────────────────────────────────────────────────
   if (user.role !== 'superadmin' && prevGenCount >= MAX_GENS) {
     return NextResponse.json({
       error: `You have used all ${MAX_GENS} spec generations for this requirement. Please submit your current spec, or contact BespoxAI if further changes are needed.`,
@@ -182,81 +164,57 @@ export async function POST(
 
   const isRefinement = prevGenCount > 0
 
-  // ── Build prompt sections ────────────────────────────────────────────────
+  // ── Build context sections ────────────────────────────────────────────────
 
-  // Q&A section
-  let qaSection = ''
-  if (bodyQA && bodyQA.length > 0) {
-    qaSection = '\n--- Customer responses to clarifying questions ---\n' +
-      bodyQA.map((pair, i) => `Q${i+1}: ${pair.q}\nA${i+1}: ${pair.a}`).join('\n\n')
-  } else if (prevQuestions.length > 0 && req_data.customerAnswers) {
-    const saved = req_data.customerAnswers
+  // 1. AI clarifying Q&A answers (from current request or saved)
+  let aiQASection = ''
+  const qaToUse = bodyQA ?? (() => {
     try {
-      const qa = JSON.parse(saved)
-      if (Array.isArray(qa) && qa[0]?.q) {
-        qaSection = '\n--- Previous Q&A on record ---\n' +
-          qa.map((p: any, i: number) => `Q${i+1}: ${p.q}\nA${i+1}: ${p.a}`).join('\n\n')
-      } else {
-        qaSection = `\n--- Previous context on record ---\n${saved}`
-      }
-    } catch {
-      qaSection = `\n--- Previous context on record ---\n${saved}`
-    }
+      const saved = req_data.customerAnswers ? JSON.parse(req_data.customerAnswers) : null
+      return Array.isArray(saved) && saved[0]?.q ? saved : null
+    } catch { return null }
+  })()
+  if (qaToUse && qaToUse.length > 0) {
+    aiQASection = '\n--- Customer answers to AI clarifying questions ---\n' +
+      qaToUse.map((p: any, i: number) => `Q${i+1}: ${p.q}\nA${i+1}: ${p.a}`).join('\n\n')
   }
 
-  // Customer refinements for this regeneration
-  let refinementSection = ''
-  if (isRefinement) {
-    const parts: string[] = []
-
-    if (customerRefinements.trim()) {
-      parts.push(`Customer's requested changes:\n${customerRefinements.trim()}`)
-    }
-    if (editedUserStory.trim()) {
-      parts.push(`Customer's edited user story (use this verbatim):\n"${editedUserStory.trim()}"`)
-    }
-    if (editedCriteria.length > 0) {
-      parts.push(`Customer's edited acceptance criteria (use these as the base, then refine):\n${editedCriteria.map((c, i) => `${i+1}. ${c}`).join('\n')}`)
-    }
-
-    if (parts.length > 0) {
-      refinementSection = '\n--- CUSTOMER REFINEMENTS FOR THIS REGENERATION ---\n' + parts.join('\n\n')
-    }
-
-    // Previous spec as context
-    if (prevSpec) {
-      refinementSection += `\n\n--- PREVIOUS SPEC (to be refined, not replaced wholesale) ---
-User Story: ${prevSpec.userStory ?? ''}
-Acceptance Criteria:
-${(prevSpec.acceptanceCriteria ?? []).map((c: string, i: number) => `${i+1}. ${c}`).join('\n')}
-BC Objects: ${(prevSpec.bcObjects ?? []).join(', ')}
-Complexity: ${prevSpec.complexity ?? ''} (~${prevSpec.estimatedDays ?? '?'} days)
-Notes: ${prevSpec.notes ?? ''}`
-    }
-
-    // Full refinement history for accumulated context
-    if (prevHistory.length > 0) {
-      refinementSection += '\n\n--- PREVIOUS REFINEMENT HISTORY (context only) ---\n' +
-        prevHistory.map((h, i) => `Refinement ${i+1}: ${h}`).join('\n')
-    }
-  }
-
-  // ── Admin Q&A log context ────────────────────────────────────────────────
+  // 2. All admin/consultant Q&A rounds (full log — every round, answered or not)
   let adminQASection = ''
   try {
     const qaLog = req_data.adminQALog ? JSON.parse(req_data.adminQALog) : []
     if (qaLog.length > 0) {
-      const answeredRounds = qaLog.filter((r: any) => r.answers !== null)
-      if (answeredRounds.length > 0) {
-        adminQASection = '\n--- Admin/consultant questions and customer answers ---\n' +
-          answeredRounds.map((r: any) => [
-            `Round ${r.round}:`,
-            `Questions from consultant:\n${r.questions}`,
-            `Customer answers:\n${r.answers}`,
-          ].join('\n')).join('\n\n')
-      }
+      adminQASection = '\n--- Consultant/admin Q&A rounds (all rounds) ---\n' +
+        qaLog.map((r: any) => [
+          `Round ${r.round} — asked ${new Date(r.askedAt).toLocaleDateString()}:`,
+          `Consultant questions:\n${r.questions}`,
+          r.answers
+            ? `Customer answers:\n${r.answers}`
+            : `(awaiting customer response)`,
+        ].join('\n')).join('\n\n')
     }
   } catch { /* ignore */ }
+
+  // 3. Customer-requested changes for this regeneration
+  let changesSection = ''
+  if (isRefinement) {
+    const parts: string[] = []
+    if (customerRefinements.trim())
+      parts.push(`Customer's requested changes:\n${customerRefinements.trim()}`)
+    if (editedUserStory.trim())
+      parts.push(`Customer's edited user story (use verbatim):\n"${editedUserStory.trim()}"`)
+    if (editedCriteria.length > 0)
+      parts.push(`Customer's edited acceptance criteria (use as base):\n${editedCriteria.map((c, i) => `${i+1}. ${c}`).join('\n')}`)
+    if (parts.length > 0)
+      changesSection = '\n--- Changes requested for this regeneration ---\n' + parts.join('\n\n')
+  }
+
+  // 4. Previous history summaries (context only — no full snapshots in prompt)
+  let historySection = ''
+  if (prevHistory.length > 0) {
+    historySection = '\n--- Spec version history (context only) ---\n' +
+      prevHistory.map((h, i) => `v${i+1} (${new Date(h.at).toLocaleDateString()}): ${h.summary}`).join('\n')
+  }
 
   const prompt = [
     `BC Area: ${req_data.bcArea}`,
@@ -265,12 +223,13 @@ Notes: ${prevSpec.notes ?? ''}`
     '',
     'Original customer description:',
     req_data.description,
-    qaSection,
+    aiQASection,
     adminQASection,
-    refinementSection,
+    changesSection,
+    historySection,
   ].filter(Boolean).join('\n')
 
-  // ── Call AI ──────────────────────────────────────────────────────────────
+  // ── Call AI ───────────────────────────────────────────────────────────────
   let spec: any
   try {
     const completion = await openai.chat.completions.create({
@@ -278,63 +237,63 @@ Notes: ${prevSpec.notes ?? ''}`
       temperature: 0.2,
       max_tokens: 4096,
       messages: [
-        { role: 'system', content: buildSystemPrompt(bcVersion, isRefinement) },
+        { role: 'system', content: buildSystemPrompt(bcVersion) },
         { role: 'user',   content: prompt },
       ],
     })
     const raw     = completion.choices[0]?.message?.content ?? ''
     if (!raw) throw new Error('Empty response from AI')
-
     const cleaned = raw.replace(/^```[a-z]*\n?/i, '').replace(/\n?```$/, '').trim()
-
-    // Try direct parse first, then attempt repair if truncated
     let parsed: any = null
     try {
       parsed = JSON.parse(cleaned)
     } catch {
-      console.warn('JSON parse failed — attempting repair of truncated response')
-      try {
-        parsed = JSON.parse(repairJSON(cleaned))
-        console.info('JSON repair succeeded')
-      } catch (repairErr) {
-        console.error('JSON repair also failed:', repairErr)
-        console.error('Raw response (first 500 chars):', raw.slice(0, 500))
-        throw new Error('AI returned malformed JSON. Please try again — if this persists, simplify your description.')
+      try { parsed = JSON.parse(repairJSON(cleaned)) } catch {
+        throw new Error('AI returned malformed JSON. Please try again.')
       }
     }
     spec = parsed
   } catch (err: any) {
     console.error('AI spec generation failed:', err)
-    return NextResponse.json({
-      error: err.message ?? 'AI generation failed. Please try again.',
-    }, { status: 500 })
+    return NextResponse.json({ error: err.message ?? 'AI generation failed. Please try again.' }, { status: 500 })
   }
 
-  // ── Accumulate refinement history ────────────────────────────────────────
-  const newHistoryEntry = customerRefinements.trim()
-    || (bodyQA ? `Answered ${bodyQA.length} clarifying questions` : '')
-    || (editedUserStory ? 'Edited user story directly' : '')
-    || 'Regenerated'
+  // ── Build history entry (snapshot of previous spec before overwriting) ────
+  const triggerDescription = (() => {
+    if (bodyQA && bodyQA.length > 0)      return `Customer answered ${bodyQA.length} clarifying question${bodyQA.length > 1 ? 's' : ''}`
+    if (customerRefinements.trim())        return `Customer refinement: ${customerRefinements.trim().slice(0, 80)}`
+    if (editedUserStory.trim())            return 'Customer edited user story directly'
+    if (editedCriteria.length > 0)        return 'Customer edited acceptance criteria directly'
+    if (adminQASection)                    return 'Regenerated after consultant Q&A'
+    return 'Regenerated'
+  })()
 
-  const newHistory = isRefinement
-    ? [...prevHistory, newHistoryEntry].slice(-6)  // keep last 6
+  const newHistory = isRefinement && prevSpec
+    ? [
+        ...prevHistory,
+        {
+          at:       new Date().toISOString(),
+          trigger:  triggerDescription,
+          summary:  prevSpec._changeSummary ?? `Version ${prevGenCount}`,
+          snapshot: (({ _genCount, _history, ...rest }) => rest)(prevSpec),
+        },
+      ].slice(-5)  // keep last 5 snapshots
     : []
 
-  // ── Save ─────────────────────────────────────────────────────────────────
+  // ── Save ──────────────────────────────────────────────────────────────────
   const specWithMeta = {
     ...spec,
     _genCount: prevGenCount + 1,
-    _refinementHistory: newHistory,
+    _history:  newHistory,
   }
 
-  // Save Q&A if provided
   const answersToSave = bodyQA
     ? JSON.stringify(bodyQA)
     : (req_data.customerAnswers || undefined)
 
   const updated = await (prisma as any).requirement.update({
     where: { id: params.id },
-    data: { aiSpec: JSON.stringify(specWithMeta), customerAnswers: answersToSave },
+    data:  { aiSpec: JSON.stringify(specWithMeta), customerAnswers: answersToSave },
     include: {
       user:   { select: { name: true, email: true } },
       tenant: { select: { name: true } },
@@ -343,9 +302,9 @@ Notes: ${prevSpec.notes ?? ''}`
 
   return NextResponse.json({
     requirement: updated,
-    spec: specWithMeta,
-    genCount: prevGenCount + 1,
-    maxGens: MAX_GENS,
+    spec:        specWithMeta,
+    genCount:    prevGenCount + 1,
+    maxGens:     MAX_GENS,
     isRefinement,
   })
 }

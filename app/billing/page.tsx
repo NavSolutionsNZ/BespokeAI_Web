@@ -2,7 +2,6 @@
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { PLANS } from '@/lib/stripe-prices'
 import { Suspense } from 'react'
 
 function BillingPageInner() {
@@ -15,6 +14,7 @@ function BillingPageInner() {
   const [error, setError] = useState<string | null>(null)
   const [currentTier, setCurrentTier] = useState<string>('free')
   const [subscriptionStatus, setSubscriptionStatus] = useState<string | null>(null)
+  const [prices, setPrices] = useState<Record<string, string | null>>({})
 
   const user = session?.user as any
 
@@ -29,11 +29,32 @@ function BillingPageInner() {
       .then(d => {
         if (d.tier) setCurrentTier(d.tier)
         if (d.subscriptionStatus) setSubscriptionStatus(d.subscriptionStatus)
+        if (d.prices) setPrices(d.prices)
       })
       .catch(() => {})
   }, [])
 
-  const paid_plans = PLANS.filter(p => p.id !== 'free')
+  // Plan definitions with server-supplied price IDs
+  const paid_plans = [
+    {
+      id: 'assistant', name: 'Assistant', monthlyNZD: 299, annualNZD: 3289,
+      description: 'CFO Assistant + everything in Free',
+      features: ['Everything in Free', 'CFO Assistant (AI-powered BC queries)', 'Query history & data visualisation', 'Priority support'],
+      monthlyPriceId: prices.assistant_month, annualPriceId: prices.assistant_year,
+    },
+    {
+      id: 'manager', name: 'Manager', monthlyNZD: 499, annualNZD: 5489,
+      description: 'Assistant + future One Day Close + everything in Free',
+      features: ['Everything in Assistant', 'One Day Close Assistant (coming soon)', 'Advanced reporting', 'Priority support'],
+      monthlyPriceId: prices.manager_month, annualPriceId: prices.manager_year,
+    },
+    {
+      id: 'executive', name: 'Executive', monthlyNZD: 999, annualNZD: 10989,
+      description: 'Everything included + 10% off all paid services',
+      features: ['Everything in Manager', '10% discount on Customisations', '10% discount on Migration Analyser', 'Dedicated support'],
+      monthlyPriceId: prices.executive_month, annualPriceId: prices.executive_year,
+    },
+  ]
 
   async function handleSubscribe(priceId: string | undefined, planId: string) {
     if (!priceId) { setError('Price not configured. Contact support.'); return }

@@ -10,16 +10,31 @@ export async function GET() {
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const tenantId = (session.user as any).tenantId
-  if (!tenantId) return NextResponse.json({ tier: 'free', subscriptionStatus: null })
+  if (!tenantId) return NextResponse.json({ tier: 'free', subscriptionStatus: null, prices: {} })
 
   const tenant = await prisma.tenant.findUnique({
     where: { id: tenantId },
-    select: { tier: true, subscriptionStatus: true, trialEndsAt: true },
+    select: { tier: true, trialEndsAt: true },
   })
 
+  // Resolve subscription status separately (new field, use as any)
+  const tenantFull = await (prisma as any).tenant.findUnique({
+    where: { id: tenantId },
+    select: { subscriptionStatus: true },
+  })
+
+  // Price IDs are server-only env vars — expose them here so the client billing page can use them
   return NextResponse.json({
     tier: tenant?.tier ?? 'free',
-    subscriptionStatus: (tenant as any)?.subscriptionStatus ?? null,
+    subscriptionStatus: tenantFull?.subscriptionStatus ?? null,
     trialEndsAt: tenant?.trialEndsAt ?? null,
+    prices: {
+      assistant_month:  process.env.STRIPE_PRICE_ASSISTANT_MONTHLY ?? null,
+      assistant_year:   process.env.STRIPE_PRICE_ASSISTANT_ANNUAL  ?? null,
+      manager_month:    process.env.STRIPE_PRICE_MANAGER_MONTHLY   ?? null,
+      manager_year:     process.env.STRIPE_PRICE_MANAGER_ANNUAL    ?? null,
+      executive_month:  process.env.STRIPE_PRICE_EXECUTIVE_MONTHLY ?? null,
+      executive_year:   process.env.STRIPE_PRICE_EXECUTIVE_ANNUAL  ?? null,
+    },
   })
 }

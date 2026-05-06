@@ -122,6 +122,6 @@ export async function GET() {
     byTier: tierCounts(activeList),
     newToday:  { count: newToday.length,  valueNZD: todayValue, byTier: tierCounts(newToday) },
     newMonth:  { count: newMonth.length,  valueNZD: monthValue, byTier: tierCounts(newMonth), list: newMonthList },
-    cancelled: { count: cancellations.length, list: cancellations },
+    cancelled: { count: cancellations.length, lostMRR, list: cancellations },
   })
 }

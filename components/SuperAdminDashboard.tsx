@@ -30,7 +30,7 @@ interface BillingStats {
   byTier: Record<string, number>
   newToday:  { count: number; valueNZD: number; byTier: Record<string, number> }
   newMonth:  { count: number; valueNZD: number; byTier: Record<string, number>; list: { id: string; customer: string; plan: string; startedAt: string; valueNZD: number }[] }
-  cancelled: { count: number; list: { id: string; customer: string; plan: string; cancelledAt: string; reason: string | null; feedback: string | null; comment: string | null }[] }
+  cancelled: { count: number; lostMRR: number; list: { id: string; customer: string; plan: string; cancelledAt: string; reason: string | null; feedback: string | null; comment: string | null; lostMRR: number }[] }
 }
 
 interface TenantHealth {
@@ -206,6 +206,9 @@ export default function SuperAdminDashboard({ onNavigate }: { onNavigate: (tab: 
           <div style={{ flex:'1 1 160px', background: billing.cancelled.count > 0 ? 'rgba(163,45,45,0.06)' : 'var(--white)', border:`1px solid ${billing.cancelled.count > 0 ? 'rgba(163,45,45,0.2)' : 'var(--fog)'}`, borderRadius:12, padding:'16px 20px' }}>
             <div style={{ fontFamily:'var(--font-mono)', fontSize:9, letterSpacing:'0.14em', textTransform:'uppercase', color:'var(--slate)', marginBottom:6 }}>Cancelled / month</div>
             <div style={{ fontFamily:'var(--font-display)', fontSize:36, fontWeight:300, color: billing.cancelled.count > 0 ? '#A32D2D' : 'var(--ink)', lineHeight:1 }}>{billing.cancelled.count}</div>
+            {billing.cancelled.lostMRR > 0 && (
+              <div style={{ fontFamily:'var(--font-mono)', fontSize:10, color:'#A32D2D', marginTop:4 }}>−${billing.cancelled.lostMRR.toLocaleString()} MRR</div>
+            )}
           </div>
         </>)}
       </div>
@@ -304,7 +307,7 @@ export default function SuperAdminDashboard({ onNavigate }: { onNavigate: (tab: 
           <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
             <thead>
               <tr style={{ borderBottom:'1px solid var(--fog)' }}>
-                {['Customer','Plan','Cancelled','Reason','Feedback'].map(h => (
+                {['Customer','Plan','Cancelled','Lost MRR','Reason','Feedback'].map(h => (
                   <th key={h} style={{ padding:'8px 14px', textAlign:'left', fontFamily:'var(--font-mono)', fontSize:9, letterSpacing:'0.1em', textTransform:'uppercase', color:'var(--slate)', fontWeight:500 }}>{h}</th>
                 ))}
               </tr>
@@ -316,6 +319,7 @@ export default function SuperAdminDashboard({ onNavigate }: { onNavigate: (tab: 
                   <td style={{ padding:'10px 14px', color:'var(--slate)', fontFamily:'var(--font-mono)', fontSize:11 }}>{s.plan}</td>
                   <td style={{ padding:'10px 14px', color:'var(--slate)', fontFamily:'var(--font-mono)', fontSize:11 }}>{relativeTime(s.cancelledAt)}</td>
                   <td style={{ padding:'10px 14px', fontFamily:'var(--font-mono)', fontSize:11, color: s.reason ? '#A32D2D' : 'var(--fog)' }}>{s.reason?.replace(/_/g,' ') ?? '—'}</td>
+                  <td style={{ padding:'10px 14px', fontFamily:'var(--font-mono)', fontSize:11, color:'#A32D2D', fontWeight:600 }}>${s.lostMRR.toLocaleString()}</td>
                   <td style={{ padding:'10px 14px', color:'var(--slate)', fontSize:12, maxWidth:220 }}>{[s.feedback?.replace(/_/g,' '), s.comment].filter(Boolean).join(' · ') || '—'}</td>
                 </tr>
               ))}

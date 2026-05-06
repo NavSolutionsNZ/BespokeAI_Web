@@ -9,7 +9,7 @@ import type { DisplayHint, StructuredData } from '@/app/api/query/route'
 import DataVisualizer from '@/components/DataVisualizer'
 import { UpgradePrompt } from '@/components/UpgradePrompt'
 import RequirementsBuilder from '@/components/RequirementsBuilder'
-
+import MigrationAnalyzerLanding from '@/components/MigrationAnalyzerLanding'
 // ─── PDF helpers ──────────────────────────────────────────────────────────────
 
 function buildDataHTML(hint: string | undefined, data: StructuredData | null | undefined): string {
@@ -526,7 +526,7 @@ function DashboardInner() {
                 fontFamily: 'var(--font-display)', fontWeight: 500, fontSize: 20,
                 color: 'var(--ink)', lineHeight: 1,
               }}>
-                {activeNav === 'assistant' ? 'CFO Assistant' : activeNav === 'customisations' ? 'Customisations' : 'Data Health Scanner'}
+                {activeNav === 'assistant' ? 'CFO Assistant' : activeNav === 'customisations' ? 'Customisations' : activeNav === 'migration' ? 'Migration Analyser' : 'Data Health Scanner'}
               </h1>
             </div>
           </div>
@@ -889,6 +889,13 @@ function DashboardInner() {
             userRole={user?.role ?? 'user'}
             tenantId={user?.tenantId ?? ''}
           />
+        )}
+
+        {/* ── Migration Analyser ────────────────────────────────────────────── */}
+        {activeNav === 'migration' && (
+          <div style={{ flex: 1, overflowY: 'auto', padding: '32px' }}>
+            <MigrationAnalyzerLanding />
+          </div>
         )}
       </div>
 

@@ -310,7 +310,7 @@ export default function SuperAdminDashboard({ onNavigate }: { onNavigate: (tab: 
             </thead>
             <tbody>
               {billing.newMonth.list.map((s,i) => (
-                <tr key={s.id} style={{ borderBottom: i < billing.newMonth.list.length-1 ? '1px solid var(--fog)' : 'none' }}>
+                <tr key={i} style={{ borderBottom: i < billing.newMonth.list.length-1 ? '1px solid var(--fog)' : 'none' }}>
                   <td style={{ padding:'10px 14px', color:'var(--ink)' }}>{s.customer}</td>
                   <td style={{ padding:'10px 14px', color:'var(--slate)', fontFamily:'var(--font-mono)', fontSize:11 }}>{s.plan}</td>
                   <td style={{ padding:'10px 14px', color:'var(--slate)', fontFamily:'var(--font-mono)', fontSize:11 }}>{relativeTime(s.startedAt)}</td>

@@ -27,8 +27,9 @@ interface MigrationEnquiry {
 interface BillingStats {
   mrr: number
   active: number
-  newToday:  { count: number; valueNZD: number }
-  newMonth:  { count: number; valueNZD: number; list: { id: string; customer: string; plan: string; startedAt: string; valueNZD: number }[] }
+  byTier: Record<string, number>
+  newToday:  { count: number; valueNZD: number; byTier: Record<string, number> }
+  newMonth:  { count: number; valueNZD: number; byTier: Record<string, number>; list: { id: string; customer: string; plan: string; startedAt: string; valueNZD: number }[] }
   cancelled: { count: number; list: { id: string; customer: string; plan: string; cancelledAt: string; reason: string | null; feedback: string | null; comment: string | null }[] }
 }
 
@@ -70,6 +71,29 @@ function TierBadge({ tier }: { tier: string }) {
   const [color, bg] = c[tier] ?? c.trial
   return (
     <span style={{ fontFamily:'var(--font-mono)', fontSize:8, letterSpacing:'0.1em', textTransform:'uppercase', padding:'2px 8px', borderRadius:6, color, background:bg }}>{tier}</span>
+  )
+}
+
+const TIER_COLORS: Record<string, [string, string]> = {
+  assistant: ['#0A5C46', 'rgba(10,92,70,0.1)'],
+  manager:   ['#1A9272', 'rgba(26,146,114,0.1)'],
+  executive: ['#C8952A', 'rgba(200,149,42,0.1)'],
+}
+
+function TierBreakdown({ byTier }: { byTier: Record<string, number> }) {
+  const tiers = ['assistant', 'manager', 'executive'].filter(t => (byTier[t] ?? 0) > 0)
+  if (tiers.length === 0) return null
+  return (
+    <div style={{ display:'flex', flexWrap:'wrap', gap:4 }}>
+      {tiers.map(t => {
+        const [color, bg] = TIER_COLORS[t] ?? ['var(--slate)', 'var(--fog)']
+        return (
+          <span key={t} style={{ fontFamily:'var(--font-mono)', fontSize:8, letterSpacing:'0.08em', textTransform:'uppercase', padding:'2px 7px', borderRadius:6, color, background:bg }}>
+            {t} · {byTier[t]}
+          </span>
+        )
+      })}
+    </div>
   )
 }
 
@@ -152,18 +176,38 @@ export default function SuperAdminDashboard({ onNavigate }: { onNavigate: (tab: 
         ))}
 
         {/* Billing KPIs */}
-        {billing && [
-          { label:'MRR (NZD)',        value:`$${billing.mrr.toLocaleString()}`,          hi:false },
-          { label:'New today',        value:billing.newToday.count,                       sub:`$${billing.newToday.valueNZD.toLocaleString()}`, hi:false },
-          { label:'New this month',   value:billing.newMonth.count,                       sub:`$${billing.newMonth.valueNZD.toLocaleString()}`, hi:false },
-          { label:'Cancelled / month',value:billing.cancelled.count,                      hi:billing.cancelled.count > 0 },
-        ].map(k => (
-          <div key={k.label} style={{ flex:'1 1 160px', background: k.hi && billing.cancelled.count > 0 ? 'rgba(163,45,45,0.06)' : 'var(--white)', border:`1px solid ${ k.hi && billing.cancelled.count > 0 ? 'rgba(163,45,45,0.2)' : 'var(--fog)'}`, borderRadius:12, padding:'16px 20px' }}>
-            <div style={{ fontFamily:'var(--font-mono)', fontSize:9, letterSpacing:'0.14em', textTransform:'uppercase', color:'var(--slate)', marginBottom:6 }}>{k.label}</div>
-            <div style={{ fontFamily:'var(--font-display)', fontSize:36, fontWeight:300, color: k.hi && billing.cancelled.count > 0 ? '#A32D2D' : 'var(--forest)', lineHeight:1 }}>{k.value}</div>
-            {'sub' in k && k.sub && <div style={{ fontFamily:'var(--font-mono)', fontSize:10, color:'var(--slate)', marginTop:4 }}>{k.sub}</div>}
+        {billing && (<>
+          {/* MRR */}
+          <div style={{ flex:'1 1 160px', background:'var(--white)', border:'1px solid var(--fog)', borderRadius:12, padding:'16px 20px' }}>
+            <div style={{ fontFamily:'var(--font-mono)', fontSize:9, letterSpacing:'0.14em', textTransform:'uppercase', color:'var(--slate)', marginBottom:6 }}>MRR (NZD)</div>
+            <div style={{ fontFamily:'var(--font-display)', fontSize:36, fontWeight:300, color:'var(--forest)', lineHeight:1 }}>${billing.mrr.toLocaleString()}</div>
           </div>
-        ))}
+          {/* Active subs by tier */}
+          <div style={{ flex:'1 1 180px', background:'var(--white)', border:'1px solid var(--fog)', borderRadius:12, padding:'16px 20px' }}>
+            <div style={{ fontFamily:'var(--font-mono)', fontSize:9, letterSpacing:'0.14em', textTransform:'uppercase', color:'var(--slate)', marginBottom:6 }}>Active subs</div>
+            <div style={{ fontFamily:'var(--font-display)', fontSize:36, fontWeight:300, color:'var(--forest)', lineHeight:1, marginBottom:6 }}>{billing.active}</div>
+            <TierBreakdown byTier={billing.byTier} />
+          </div>
+          {/* New subs today */}
+          <div style={{ flex:'1 1 180px', background:'var(--white)', border:'1px solid var(--fog)', borderRadius:12, padding:'16px 20px' }}>
+            <div style={{ fontFamily:'var(--font-mono)', fontSize:9, letterSpacing:'0.14em', textTransform:'uppercase', color:'var(--slate)', marginBottom:6 }}>New subs today</div>
+            <div style={{ fontFamily:'var(--font-display)', fontSize:36, fontWeight:300, color:'var(--forest)', lineHeight:1, marginBottom:2 }}>{billing.newToday.count}</div>
+            <div style={{ fontFamily:'var(--font-mono)', fontSize:10, color:'var(--slate)', marginBottom:6 }}>${billing.newToday.valueNZD.toLocaleString()}</div>
+            <TierBreakdown byTier={billing.newToday.byTier} />
+          </div>
+          {/* New subs this month */}
+          <div style={{ flex:'1 1 180px', background:'var(--white)', border:'1px solid var(--fog)', borderRadius:12, padding:'16px 20px' }}>
+            <div style={{ fontFamily:'var(--font-mono)', fontSize:9, letterSpacing:'0.14em', textTransform:'uppercase', color:'var(--slate)', marginBottom:6 }}>New subs this month</div>
+            <div style={{ fontFamily:'var(--font-display)', fontSize:36, fontWeight:300, color:'var(--forest)', lineHeight:1, marginBottom:2 }}>{billing.newMonth.count}</div>
+            <div style={{ fontFamily:'var(--font-mono)', fontSize:10, color:'var(--slate)', marginBottom:6 }}>${billing.newMonth.valueNZD.toLocaleString()}</div>
+            <TierBreakdown byTier={billing.newMonth.byTier} />
+          </div>
+          {/* Cancellations */}
+          <div style={{ flex:'1 1 160px', background: billing.cancelled.count > 0 ? 'rgba(163,45,45,0.06)' : 'var(--white)', border:`1px solid ${billing.cancelled.count > 0 ? 'rgba(163,45,45,0.2)' : 'var(--fog)'}`, borderRadius:12, padding:'16px 20px' }}>
+            <div style={{ fontFamily:'var(--font-mono)', fontSize:9, letterSpacing:'0.14em', textTransform:'uppercase', color:'var(--slate)', marginBottom:6 }}>Cancelled / month</div>
+            <div style={{ fontFamily:'var(--font-display)', fontSize:36, fontWeight:300, color: billing.cancelled.count > 0 ? '#A32D2D' : 'var(--ink)', lineHeight:1 }}>{billing.cancelled.count}</div>
+          </div>
+        </>)}
       </div>
 
       {/* ── Needs attention ─────────────────────────────────────────────── */}

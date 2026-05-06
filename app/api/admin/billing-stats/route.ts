@@ -24,6 +24,23 @@ function planLabel(priceId: string | null): string {
   return map[priceId] ?? priceId
 }
 
+// Tier from price ID
+function tierOf(priceId: string | null): 'assistant' | 'manager' | 'executive' | 'unknown' {
+  if (!priceId) return 'unknown'
+  if ([process.env.STRIPE_PRICE_ASSISTANT_MONTHLY, process.env.STRIPE_PRICE_ASSISTANT_ANNUAL].includes(priceId)) return 'assistant'
+  if ([process.env.STRIPE_PRICE_MANAGER_MONTHLY,   process.env.STRIPE_PRICE_MANAGER_ANNUAL].includes(priceId))   return 'manager'
+  if ([process.env.STRIPE_PRICE_EXECUTIVE_MONTHLY, process.env.STRIPE_PRICE_EXECUTIVE_ANNUAL].includes(priceId)) return 'executive'
+  return 'unknown'
+}
+
+function tierCounts(subs: { items: { data: { price: { id: string } }[] } }[]) {
+  return subs.reduce((acc, s) => {
+    const t = tierOf(s.items.data[0]?.price?.id ?? null)
+    acc[t] = (acc[t] ?? 0) + 1
+    return acc
+  }, {} as Record<string, number>)
+}
+
 // Convert annual amount to monthly equivalent for MRR
 function toMonthly(amount: number, priceId: string): number {
   const annualIds = [
@@ -102,8 +119,9 @@ export async function GET() {
   return NextResponse.json({
     mrr,
     active: activeList.length,
-    newToday:  { count: newToday.length,  valueNZD: todayValue },
-    newMonth:  { count: newMonth.length,  valueNZD: monthValue, list: newMonthList },
+    byTier: tierCounts(activeList),
+    newToday:  { count: newToday.length,  valueNZD: todayValue, byTier: tierCounts(newToday) },
+    newMonth:  { count: newMonth.length,  valueNZD: monthValue, byTier: tierCounts(newMonth), list: newMonthList },
     cancelled: { count: cancellations.length, list: cancellations },
   })
 }

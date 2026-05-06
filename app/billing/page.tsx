@@ -24,8 +24,7 @@ function BillingPageInner() {
   }, [status, user])
 
   useEffect(() => {
-    // Load current billing info from settings API
-    fetch('/api/settings')
+    fetch('/api/billing/status')
       .then(r => r.json())
       .then(d => {
         if (d.tier) setCurrentTier(d.tier)

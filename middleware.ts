@@ -39,7 +39,8 @@ export default withAuth(
           pathname.startsWith('/forgot-password')          ||
           pathname.startsWith('/reset-password')           ||
           pathname.startsWith('/api/auth/forgot-password') ||
-          pathname.startsWith('/api/auth/reset-password')
+          pathname.startsWith('/api/auth/reset-password')  ||
+          pathname.startsWith('/api/webhooks/stripe')
         ) return true
         return !!token?.tenantId
       },
@@ -61,5 +62,6 @@ export const config = {
     '/api/demo/:path*',
     '/api/signup/:path*',
     '/api/signup',
+    '/api/webhooks/stripe',
   ],
 }

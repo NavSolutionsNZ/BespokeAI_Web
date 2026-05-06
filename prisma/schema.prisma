@@ -19,9 +19,13 @@ model Tenant {
   entityConfig    Json?
   tunnelId        String?
   country         String   @default("NZ")   // ISO country code for CFO/tax context
-  tier            String   @default("trial") // "trial" | "paid" | "enterprise"
-  trialEndsAt     DateTime?                  // null = no expiry (paid/enterprise)
-  createdAt       DateTime @default(now())
+  tier                 String   @default("trial") // "free" | "trial" | "assistant" | "manager" | "executive"
+  trialEndsAt          DateTime?                  // null = no expiry
+  stripeCustomerId     String?                    // Stripe customer ID
+  stripeSubscriptionId String?                    // active Stripe subscription ID
+  stripePriceId        String?                    // current price ID (to identify plan + interval)
+  subscriptionStatus   String?  @default("inactive") // active | inactive | past_due | cancelled | trialing
+  createdAt            DateTime @default(now())
   updatedAt       DateTime @updatedAt
   users               User[]
   queryLogs           QueryLog[]
@@ -132,7 +136,12 @@ model Requirement {
   adminQALog      String?   @db.Text  // JSON array [{round, questions, answers, askedAt, answeredAt}]
   quoteRejectedAt      DateTime?
   quoteRejectionReason String?  @db.Text
-  devPlan         String?   @db.Text  // JSON: internal superadmin-only development plan (tasks, hours, risks, quoting notes)
+  devPlan              String?  @db.Text  // JSON: internal superadmin-only development plan
+  depositStripeSessionId  String?          // Stripe Checkout Session ID for deposit payment
+  depositBypassed         Boolean @default(false)  // superadmin can bypass deposit requirement
+  fullPaymentRequested    Boolean @default(false)  // customer requested to pay in full upfront
+  fullPaymentApproved     Boolean @default(false)  // superadmin approved full upfront payment
+  balanceStripeSessionId  String?          // Stripe Checkout Session ID for balance payment
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
@@ -151,6 +160,8 @@ model MigrationEnquiry {
   urgency     String?
   notes       String?  @db.Text
   status      String   @default("new")  // new | contacted | quoted | closed
+  depositStripeSessionId String?        // Stripe Checkout Session ID for $500 deposit
+  depositPaidAt          DateTime?      // set when deposit confirmed via webhook
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 

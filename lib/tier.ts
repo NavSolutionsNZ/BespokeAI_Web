@@ -2,8 +2,13 @@ import { prisma } from '@/lib/db'
 
 export type TierStatus =
   | { allowed: true }
-  | { allowed: false; reason: 'trial_expired' | 'no_tenant' | 'unknown'; trialEndsAt?: string | null }
+  | { allowed: false; reason: 'no_plan' | 'trial_expired' | 'no_tenant' | 'unknown'; trialEndsAt?: string | null }
 
+/**
+ * Check whether a tenant has access to the CFO Assistant feature.
+ * Tiers with access: trial (not expired), assistant, manager, executive
+ * Tier without access: free
+ */
 export async function checkTierAccess(tenantId: string): Promise<TierStatus> {
   const tenant = await prisma.tenant.findUnique({
     where: { id: tenantId },
@@ -12,14 +17,19 @@ export async function checkTierAccess(tenantId: string): Promise<TierStatus> {
 
   if (!tenant) return { allowed: false, reason: 'no_tenant' }
 
-  // Paid / enterprise — always allowed
+  // Paid subscription tiers — always allowed
+  if (['assistant', 'manager', 'executive'].includes(tenant.tier)) {
+    return { allowed: true }
+  }
+
+  // Legacy: paid / enterprise — always allowed
   if (tenant.tier === 'paid' || tenant.tier === 'enterprise') {
     return { allowed: true }
   }
 
   // Trial — check expiry
   if (tenant.tier === 'trial') {
-    if (!tenant.trialEndsAt) return { allowed: true } // no expiry set = still valid
+    if (!tenant.trialEndsAt) return { allowed: true }
     if (new Date() < new Date(tenant.trialEndsAt)) return { allowed: true }
     return {
       allowed: false,
@@ -28,5 +38,37 @@ export async function checkTierAccess(tenantId: string): Promise<TierStatus> {
     }
   }
 
+  // Free tier — no assistant access
+  if (tenant.tier === 'free') {
+    return { allowed: false, reason: 'no_plan' }
+  }
+
   return { allowed: false, reason: 'unknown' }
+}
+
+/**
+ * Check if a tenant has access to a specific feature.
+ * Extend this as new features are gated per plan.
+ */
+export async function checkFeatureAccess(
+  tenantId: string,
+  feature: 'assistant' | 'manager' | 'executive'
+): Promise<boolean> {
+  const tenant = await prisma.tenant.findUnique({
+    where: { id: tenantId },
+    select: { tier: true },
+  })
+  if (!tenant) return false
+  const tier = tenant.tier
+
+  switch (feature) {
+    case 'assistant':
+      return ['assistant', 'manager', 'executive', 'paid', 'enterprise', 'trial'].includes(tier)
+    case 'manager':
+      return ['manager', 'executive'].includes(tier)
+    case 'executive':
+      return tier === 'executive'
+    default:
+      return false
+  }
 }

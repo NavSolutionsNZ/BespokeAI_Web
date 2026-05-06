@@ -24,13 +24,18 @@ interface MigrationEnquiry {
   user: { name: string | null; email: string }
 }
 
+interface PlanChange { customer: string; from: string; to: string; mrrDelta: number; changedAt: string }
+
 interface BillingStats {
   mrr: number
   active: number
+  totalLostMRR: number
   byTier: Record<string, number>
-  newToday:  { count: number; valueNZD: number; byTier: Record<string, number> }
-  newMonth:  { count: number; valueNZD: number; byTier: Record<string, number>; list: { id: string; customer: string; plan: string; startedAt: string; valueNZD: number }[] }
-  cancelled: { count: number; lostMRR: number; list: { id: string; customer: string; plan: string; cancelledAt: string; reason: string | null; feedback: string | null; comment: string | null; lostMRR: number }[] }
+  newToday:   { count: number; valueNZD: number; byTier: Record<string, number> }
+  newMonth:   { count: number; valueNZD: number; byTier: Record<string, number>; list: { customer: string; plan: string; startedAt: string; valueNZD: number }[] }
+  upgrades:   { count: number; list: PlanChange[] }
+  downgrades: { count: number; lostMRR: number; list: PlanChange[] }
+  cancelled:  { count: number; lostMRR: number; list: { customer: string; plan: string; cancelledAt: string; reason: string | null; feedback: string | null; comment: string | null; lostMRR: number }[] }
 }
 
 interface TenantHealth {
@@ -202,14 +207,31 @@ export default function SuperAdminDashboard({ onNavigate }: { onNavigate: (tab: 
             <div style={{ fontFamily:'var(--font-mono)', fontSize:10, color:'var(--slate)', marginBottom:6 }}>${billing.newMonth.valueNZD.toLocaleString()}</div>
             <TierBreakdown byTier={billing.newMonth.byTier} />
           </div>
+          {/* Upgrades */}
+          <div style={{ flex:'1 1 160px', background: billing.upgrades.count > 0 ? 'rgba(10,92,70,0.06)' : 'var(--white)', border:`1px solid ${billing.upgrades.count > 0 ? 'rgba(10,92,70,0.2)' : 'var(--fog)'}`, borderRadius:12, padding:'16px 20px' }}>
+            <div style={{ fontFamily:'var(--font-mono)', fontSize:9, letterSpacing:'0.14em', textTransform:'uppercase', color:'var(--slate)', marginBottom:6 }}>Upgrades / month</div>
+            <div style={{ fontFamily:'var(--font-display)', fontSize:36, fontWeight:300, color: billing.upgrades.count > 0 ? 'var(--forest)' : 'var(--ink)', lineHeight:1 }}>{billing.upgrades.count}</div>
+          </div>
+          {/* Downgrades */}
+          <div style={{ flex:'1 1 160px', background: billing.downgrades.count > 0 ? 'rgba(163,45,45,0.06)' : 'var(--white)', border:`1px solid ${billing.downgrades.count > 0 ? 'rgba(163,45,45,0.2)' : 'var(--fog)'}`, borderRadius:12, padding:'16px 20px' }}>
+            <div style={{ fontFamily:'var(--font-mono)', fontSize:9, letterSpacing:'0.14em', textTransform:'uppercase', color:'var(--slate)', marginBottom:6 }}>Downgrades / month</div>
+            <div style={{ fontFamily:'var(--font-display)', fontSize:36, fontWeight:300, color: billing.downgrades.count > 0 ? '#A32D2D' : 'var(--ink)', lineHeight:1 }}>{billing.downgrades.count}</div>
+            {billing.downgrades.lostMRR > 0 && <div style={{ fontFamily:'var(--font-mono)', fontSize:10, color:'#A32D2D', marginTop:4 }}>−${billing.downgrades.lostMRR.toLocaleString()} MRR</div>}
+          </div>
           {/* Cancellations */}
           <div style={{ flex:'1 1 160px', background: billing.cancelled.count > 0 ? 'rgba(163,45,45,0.06)' : 'var(--white)', border:`1px solid ${billing.cancelled.count > 0 ? 'rgba(163,45,45,0.2)' : 'var(--fog)'}`, borderRadius:12, padding:'16px 20px' }}>
             <div style={{ fontFamily:'var(--font-mono)', fontSize:9, letterSpacing:'0.14em', textTransform:'uppercase', color:'var(--slate)', marginBottom:6 }}>Cancelled / month</div>
             <div style={{ fontFamily:'var(--font-display)', fontSize:36, fontWeight:300, color: billing.cancelled.count > 0 ? '#A32D2D' : 'var(--ink)', lineHeight:1 }}>{billing.cancelled.count}</div>
-            {billing.cancelled.lostMRR > 0 && (
-              <div style={{ fontFamily:'var(--font-mono)', fontSize:10, color:'#A32D2D', marginTop:4 }}>−${billing.cancelled.lostMRR.toLocaleString()} MRR</div>
-            )}
+            {billing.cancelled.lostMRR > 0 && <div style={{ fontFamily:'var(--font-mono)', fontSize:10, color:'#A32D2D', marginTop:4 }}>−${billing.cancelled.lostMRR.toLocaleString()} MRR</div>}
           </div>
+          {/* Total lost MRR */}
+          {billing.totalLostMRR > 0 && (
+            <div style={{ flex:'1 1 160px', background:'rgba(163,45,45,0.06)', border:'1px solid rgba(163,45,45,0.2)', borderRadius:12, padding:'16px 20px' }}>
+              <div style={{ fontFamily:'var(--font-mono)', fontSize:9, letterSpacing:'0.14em', textTransform:'uppercase', color:'var(--slate)', marginBottom:6 }}>Total lost MRR</div>
+              <div style={{ fontFamily:'var(--font-display)', fontSize:36, fontWeight:300, color:'#A32D2D', lineHeight:1 }}>−${billing.totalLostMRR.toLocaleString()}</div>
+              <div style={{ fontFamily:'var(--font-mono)', fontSize:9, color:'var(--slate)', marginTop:4 }}>cancellations + downgrades</div>
+            </div>
+          )}
         </>)}
       </div>
 
@@ -296,6 +318,52 @@ export default function SuperAdminDashboard({ onNavigate }: { onNavigate: (tab: 
                 </tr>
               ))}
             </tbody>
+          </table>
+        </div>
+      </>)}
+
+      {/* ── Upgrades this month ─────────────────────────────────────────── */}
+      {billing && billing.upgrades.list.length > 0 && (<>
+        <SectionLabel>Upgrades this month</SectionLabel>
+        <div style={{ background:'var(--white)', border:'1px solid rgba(10,92,70,0.2)', borderRadius:12, overflow:'hidden', marginBottom:8 }}>
+          <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
+            <thead><tr style={{ borderBottom:'1px solid var(--fog)' }}>
+              {['Customer','From','To','MRR Delta','When'].map(h => (
+                <th key={h} style={{ padding:'8px 14px', textAlign:'left', fontFamily:'var(--font-mono)', fontSize:9, letterSpacing:'0.1em', textTransform:'uppercase', color:'var(--slate)', fontWeight:500 }}>{h}</th>
+              ))}
+            </tr></thead>
+            <tbody>{billing.upgrades.list.map((u,i) => (
+              <tr key={i} style={{ borderBottom: i < billing.upgrades.list.length-1 ? '1px solid var(--fog)' : 'none' }}>
+                <td style={{ padding:'10px 14px', color:'var(--ink)' }}>{u.customer}</td>
+                <td style={{ padding:'10px 14px', color:'var(--slate)', fontFamily:'var(--font-mono)', fontSize:11 }}>{u.from}</td>
+                <td style={{ padding:'10px 14px', color:'var(--forest)', fontFamily:'var(--font-mono)', fontSize:11, fontWeight:600 }}>{u.to}</td>
+                <td style={{ padding:'10px 14px', color:'var(--forest)', fontFamily:'var(--font-mono)', fontSize:11 }}>+${u.mrrDelta}/mo</td>
+                <td style={{ padding:'10px 14px', color:'var(--slate)', fontFamily:'var(--font-mono)', fontSize:11 }}>{relativeTime(u.changedAt)}</td>
+              </tr>
+            ))}</tbody>
+          </table>
+        </div>
+      </>)}
+
+      {/* ── Downgrades this month ────────────────────────────────────────── */}
+      {billing && billing.downgrades.list.length > 0 && (<>
+        <SectionLabel>Downgrades this month</SectionLabel>
+        <div style={{ background:'var(--white)', border:'1px solid rgba(163,45,45,0.2)', borderRadius:12, overflow:'hidden', marginBottom:8 }}>
+          <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
+            <thead><tr style={{ borderBottom:'1px solid var(--fog)' }}>
+              {['Customer','From','To','Lost MRR','When'].map(h => (
+                <th key={h} style={{ padding:'8px 14px', textAlign:'left', fontFamily:'var(--font-mono)', fontSize:9, letterSpacing:'0.1em', textTransform:'uppercase', color:'var(--slate)', fontWeight:500 }}>{h}</th>
+              ))}
+            </tr></thead>
+            <tbody>{billing.downgrades.list.map((d,i) => (
+              <tr key={i} style={{ borderBottom: i < billing.downgrades.list.length-1 ? '1px solid var(--fog)' : 'none' }}>
+                <td style={{ padding:'10px 14px', color:'var(--ink)' }}>{d.customer}</td>
+                <td style={{ padding:'10px 14px', color:'var(--slate)', fontFamily:'var(--font-mono)', fontSize:11 }}>{d.from}</td>
+                <td style={{ padding:'10px 14px', color:'#A32D2D', fontFamily:'var(--font-mono)', fontSize:11, fontWeight:600 }}>{d.to}</td>
+                <td style={{ padding:'10px 14px', color:'#A32D2D', fontFamily:'var(--font-mono)', fontSize:11 }}>−${d.mrrDelta}/mo</td>
+                <td style={{ padding:'10px 14px', color:'var(--slate)', fontFamily:'var(--font-mono)', fontSize:11 }}>{relativeTime(d.changedAt)}</td>
+              </tr>
+            ))}</tbody>
           </table>
         </div>
       </>)}

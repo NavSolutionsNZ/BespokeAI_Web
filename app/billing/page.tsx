@@ -11,7 +11,8 @@ function BillingPageInner() {
   const [interval, setInterval] = useState<'month' | 'year'>('month')
   const [loading, setLoading] = useState<string | null>(null)
   const [portalLoading, setPortalLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError]   = useState<string | null>(null)
+  const [toast, setToast]   = useState<string | null>(null)
   const [currentTier, setCurrentTier] = useState<string>('free')
   const [subscriptionStatus, setSubscriptionStatus] = useState<string | null>(null)
   const [prices, setPrices] = useState<Record<string, string | null>>({})
@@ -60,6 +61,7 @@ function BillingPageInner() {
     if (!priceId) { setError('Price not configured. Contact support.'); return }
     setLoading(planId)
     setError(null)
+    setToast(null)
     try {
       const res = await fetch('/api/billing/create-checkout', {
         method: 'POST',
@@ -67,8 +69,23 @@ function BillingPageInner() {
         body: JSON.stringify({ priceId }),
       })
       const data = await res.json()
-      if (data.url) window.location.href = data.url
-      else setError(data.error ?? 'Failed to create checkout session')
+      if (data.url) {
+        window.location.href = data.url
+      } else if (data.updated) {
+        const msg = data.direction === 'upgrade'
+          ? '✓ Plan upgraded successfully. Changes take effect immediately.'
+          : '✓ Plan downgraded. Changes will apply at your next billing date.'
+        setToast(msg)
+        setCurrentTier(planId)
+        // Refresh billing status
+        fetch('/api/billing/status').then(r => r.json()).then(d => {
+          if (d.tier) setCurrentTier(d.tier)
+        })
+      } else if (data.alreadyOnPlan) {
+        setToast('You are already on this plan.')
+      } else {
+        setError(data.error ?? 'Failed to update subscription')
+      }
     } catch {
       setError('Something went wrong. Please try again.')
     } finally {
@@ -147,7 +164,12 @@ function BillingPageInner() {
           </div>
         </div>
 
-        {/* Error */}
+        {/* Toast / Error */}
+        {toast && (
+          <div style={{ background: 'rgba(10,92,70,0.08)', border: '1px solid rgba(10,92,70,0.25)', color: 'var(--forest)', borderRadius: 8, padding: '10px 16px', marginBottom: 24, fontSize: 13, textAlign: 'center' }}>
+            {toast}
+          </div>
+        )}
         {error && (
           <div style={{ background: 'rgba(226,75,74,0.08)', border: '1px solid rgba(226,75,74,0.3)', color: '#c0392b', borderRadius: 8, padding: '10px 16px', marginBottom: 24, fontSize: 13, textAlign: 'center' }}>
             {error}

@@ -168,13 +168,26 @@ function LoginForm() {
             </div>
 
             <div style={{ marginBottom: 28 }}>
-              <label style={{
-                display: 'block', fontFamily: 'var(--font-mono)',
-                fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase',
-                color: 'var(--slate)', marginBottom: 8,
-              }}>
-                Password
-              </label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
+                <label style={{
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase',
+                  color: 'var(--slate)',
+                }}>
+                  Password
+                </label>
+                <Link href="/forgot-password" style={{
+                  fontFamily: 'var(--font-mono)', fontSize: 9,
+                  letterSpacing: '0.1em', textTransform: 'uppercase',
+                  color: 'var(--slate)', textDecoration: 'none',
+                  transition: 'color 0.15s',
+                }}
+                  onMouseEnter={e => (e.currentTarget.style.color = 'var(--forest)')}
+                  onMouseLeave={e => (e.currentTarget.style.color = 'var(--slate)')}
+                >
+                  Forgot password?
+                </Link>
+              </div>
               <input
                 type="password"
                 value={password}

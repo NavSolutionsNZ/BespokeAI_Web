@@ -32,10 +32,14 @@ export default withAuth(
         const pathname = req.nextUrl.pathname
         // Public routes — no auth required
         if (
-          pathname.startsWith('/demo')       ||
-          pathname.startsWith('/api/demo')   ||
-          pathname.startsWith('/signup')     ||
-          pathname.startsWith('/api/signup')
+          pathname.startsWith('/demo')                     ||
+          pathname.startsWith('/api/demo')                 ||
+          pathname.startsWith('/signup')                   ||
+          pathname.startsWith('/api/signup')               ||
+          pathname.startsWith('/forgot-password')          ||
+          pathname.startsWith('/reset-password')           ||
+          pathname.startsWith('/api/auth/forgot-password') ||
+          pathname.startsWith('/api/auth/reset-password')
         ) return true
         return !!token?.tenantId
       },

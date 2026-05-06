@@ -3,42 +3,46 @@
 ## GitHub Access
 - **Repo:** `NavSolutionsNZ/BespokeAI_Web`
 - **Token:** provided by Rich at the start of each session (ask if not provided)
-- **Base raw URL:** `https://raw.githubusercontent.com/NavSolutionsNZ/BespokeAI_Web/main/`
-- **API URL:** `https://api.github.com/repos/NavSolutionsNZ/BespokeAI_Web/contents/`
 
-## Autonomous Operation Rules — EFFICIENCY FIRST
+## ⚡ Git Workflow (IMPORTANT — use this every session)
 
-### DO NOT clone the repo — it burns context and usage
-Instead, fetch only the files you need:
+`api.github.com` is blocked by the egress proxy. Use **sparse clone via git** instead:
+
 ```bash
-# Read a file
-curl -s -H "Authorization: token TOKEN" \
-  https://raw.githubusercontent.com/NavSolutionsNZ/BespokeAI_Web/main/path/to/file.tsx
+# 1. Clone (sparse, depth 1 — fast and lean)
+cd /tmp && git clone \
+  --depth 1 --filter=blob:none --sparse \
+  https://TOKEN@github.com/NavSolutionsNZ/BespokeAI_Web.git
 
-# Push a changed file (get SHA first, then update)
-SHA=$(curl -s -H "Authorization: token TOKEN" \
-  https://api.github.com/repos/NavSolutionsNZ/BespokeAI_Web/contents/path/to/file.tsx \
-  | python3 -c "import sys,json; print(json.load(sys.stdin)['sha'])")
+# 2. Fetch only the files you need
+cd BespokeAI_Web
+git sparse-checkout set --skip-checks \
+  path/to/file.tsx \
+  another/file.ts
 
-curl -s -X PUT -H "Authorization: token TOKEN" \
-  -H "Content-Type: application/json" \
-  https://api.github.com/repos/NavSolutionsNZ/BespokeAI_Web/contents/path/to/file.tsx \
-  -d "{"message":"commit message","content":"$(base64 -w0 /tmp/newfile.tsx)","sha":"$SHA"}"
+# 3. Configure git identity (once per session)
+git config user.email "claude@anthropic.com"
+git config user.name "Claude"
+git remote set-url origin https://TOKEN@github.com/NavSolutionsNZ/BespokeAI_Web.git
+
+# 4. Edit files in place, then commit and push
+git add --sparse path/to/file.tsx another/file.ts
+git commit -m "feat: description"
+git push origin main
+
+# For new files (not yet in repo), just create them and add --sparse works fine
+# To add more files mid-session:
+git sparse-checkout set --skip-checks existing/file.tsx new/file.tsx
 ```
 
-### Workflow per change
-1. Read the specific file(s) you need via raw GitHub URL
-2. Make changes in `/tmp/` or `/home/claude/`
-3. Push each file individually via GitHub Contents API
-4. For new files (no SHA needed), omit the `sha` field in the PUT body
+**Key rules:**
+- Always `git add --sparse` (not plain `git add`) for files outside the sparse cone
+- Always `git pull origin main --quiet` at session start if repo was cloned in a previous session
+- New files in new directories: create the directory and file, then `git add --sparse`
+- Read files with `cat`, edit with `str_replace` or full rewrites via `cat > file << 'EOF'`
 
-### When you cannot act autonomously
+## When you cannot act autonomously
 SQL migrations on Vercel Postgres, environment variables, DNS, Cloudflare tunnel config — provide the exact SQL/command clearly labelled as a **manual step for Rich**.
-
-### Never
-- Clone the whole repo
-- Ask Rich to copy/paste code
-- Ask Rich to run local commands (no local dev environment — everything via Vercel/GitHub)
 
 ## Tech Stack
 - **Framework:** Next.js 14 (App Router, `'use client'` where needed)
@@ -69,7 +73,7 @@ SQL migrations on Vercel Postgres, environment variables, DNS, Cloudflare tunnel
 ```
 
 ## Role System
-- `superadmin` — full admin portal access, internal dev tools, no tenant dashboard
+- `superadmin` — full admin portal at `/admin`, redirected away from `/dashboard`
 - `tenant_admin` — tenant settings, user management, same dashboard as user
 - `user` — standard dashboard access
 - Displayed as: "Super Admin" / "Admin" / (no label)
@@ -83,106 +87,121 @@ SQL migrations on Vercel Postgres, environment variables, DNS, Cloudflare tunnel
 ## File Structure
 ```
 app/
-  page.tsx                    → redirects / to /index.html
-  layout.tsx                  → root layout with SessionProvider
-  globals.css                 → CSS variables + keyframes
-  dashboard/page.tsx          → main CFO dashboard (client component)
-  admin/page.tsx              → superadmin portal (tenants, users, signups, requirements)
-  login/page.tsx              → login form (NextAuth credentials)
-  signup/page.tsx             → public signup request form
-  demo/page.tsx               → public demo (no auth) with mock BC data
-  settings/page.tsx           → tenant settings (tenant_admin)
+  page.tsx                         → redirects / to /index.html
+  layout.tsx                       → root layout with SessionProvider
+  globals.css                      → CSS variables + keyframes
+  dashboard/page.tsx               → CFO dashboard (superadmin redirected to /admin)
+  admin/page.tsx                   → superadmin portal (overview, tenants, users, signups, requirements)
+  login/page.tsx                   → login form with "Forgot password?" link
+  forgot-password/page.tsx         → enter email to receive reset link
+  reset-password/page.tsx          → enter new password (reads ?token=&email= from URL)
+  signup/page.tsx                  → public signup request form
+  demo/page.tsx                    → public demo (no auth) with mock BC data
+  settings/page.tsx                → tenant settings (tenant_admin)
   api/
-    query/route.ts            → main BC OData query endpoint (GPT → OData → response)
-    health/route.ts           → BC connection health check
+    query/route.ts                 → main BC OData query endpoint (GPT → OData → response)
+    health/route.ts                → BC connection health check
+    history/route.ts               → query log history
     requirements/
-      route.ts                → GET (list) / POST (create) requirements
+      route.ts                     → GET (list) / POST (create)
       [id]/
-        route.ts              → PATCH / DELETE requirement
-        ai-spec/route.ts      → POST — generate/refine AI functional spec (GPT-4o)
-        dev-plan/route.ts     → POST — generate internal dev plan (superadmin only)
+        route.ts                   → PATCH / DELETE
+        ai-spec/route.ts           → POST — full-rewrite AI spec with all context
+        dev-plan/route.ts          → POST — internal dev plan (superadmin only)
     admin/
-      requirements/route.ts  → GET all requirements (superadmin)
+      requirements/route.ts        → GET all requirements (superadmin)
       users/route.ts
-      tenants/route.ts
+      tenants/route.ts             → GET (includes queryLogs + _count.requirements) / POST
       signups/[id]/activate/route.ts
       tier-check/route.ts
-    auth/[...nextauth]/route.ts
+      migration-enquiries/route.ts → GET all / PATCH status
+      tenant-health/[tenantId]/route.ts → live BC health check for any tenant
+    auth/
+      [...nextauth]/route.ts
+      forgot-password/route.ts     → generate reset token, send email
+      reset-password/route.ts      → validate token, update password
     demo/query/route.ts
+    migration/enquiry/route.ts     → POST — save MigrationEnquiry + send email
     settings/route.ts
     signup/route.ts
     user/change-password/route.ts
 components/
-  RequirementsBuilder.tsx     → full requirements UI (customer-facing)
-  DataVisualizer.tsx          → BC data chart/table renderer
-  UpgradePrompt.tsx           → tier gate UI
+  RequirementsBuilder.tsx          → customer-facing requirements UI
+  DataVisualizer.tsx               → BC data chart/table renderer
+  UpgradePrompt.tsx                → tier gate UI
+  SuperAdminDashboard.tsx          → superadmin overview: attention items, tenant health, migration enquiries
+  MigrationAnalyzerLanding.tsx     → customer-facing migration analysis sales/lead page
 lib/
-  auth.ts                     → NextAuth config
-  db.ts                       → Prisma client singleton
-  email.ts                    → Nodemailer helpers (welcome, verify, etc.)
-  tenants.ts                  → getTenantById, buildODataUrl, TenantConfig
-  tier.ts                     → checkTier()
-  roles.ts                    → role helpers
-  bc-entities.ts              → BC entity/field definitions
+  auth.ts        → NextAuth config
+  db.ts          → Prisma client singleton
+  email.ts       → sendVerificationEmail, sendWelcomeEmail, sendEmail, sendPasswordResetEmail
+  tenants.ts     → getTenantById, buildODataUrl, TenantConfig
+  tier.ts        → checkTier()
+  roles.ts       → role helpers
+  bc-entities.ts → BC entity/field definitions
 public/
-  index.html                  → marketing landing page (static HTML/CSS/JS)
+  index.html     → marketing landing page (static HTML/CSS/JS)
   favicon.svg
 prisma/
-  schema.prisma               → full Prisma schema
-scripts/
-  migrate-5.6-requirements.sql     → initial Requirement table creation
-  migrate-5.6b-payments.sql        → deposit/balance payment columns
+  schema.prisma  → full Prisma schema
 ```
 
-## Prisma Schema (current — as of last session)
+## Prisma Schema (current)
 ```prisma
 model Tenant {
-  id              String    @id @default(cuid())
-  name            String
-  tunnelSubdomain String    @unique
-  bcInstance      String    @default("GWM_Dev")
-  bcCompany       String    @default("GWM")
-  apiKey          String
-  active          Boolean   @default(true)
-  entityConfig    Json?
-  tunnelId        String?
-  country         String    @default("NZ")
-  tier            String    @default("trial")
-  trialEndsAt     DateTime?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-  users           User[]
-  queryLogs       QueryLog[]
-  requirements    Requirement[]
+  id                  String             @id @default(cuid())
+  name                String
+  tunnelSubdomain     String             @unique
+  bcInstance          String             @default("GWM_Dev")
+  bcCompany           String             @default("GWM")
+  apiKey              String
+  active              Boolean            @default(true)
+  entityConfig        Json?
+  tunnelId            String?
+  country             String             @default("NZ")
+  tier                String             @default("trial")
+  trialEndsAt         DateTime?
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+  users               User[]
+  queryLogs           QueryLog[]
+  requirements        Requirement[]
+  migrationEnquiries  MigrationEnquiry[]
 }
 
 model User {
-  id            String    @id @default(cuid())
-  email         String    @unique
-  name          String?
-  password      String
-  role          String    @default("user")
-  active        Boolean   @default(true)
-  tenantId      String
-  tenant        Tenant    @relation(fields: [tenantId], references: [id])
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  accounts      Account[]
-  sessions      Session[]
-  queryLogs     QueryLog[]
-  requirements  Requirement[]
+  id                 String             @id @default(cuid())
+  email              String             @unique
+  name               String?
+  password           String
+  role               String             @default("user")
+  active             Boolean            @default(true)
+  tenantId           String
+  tenant             Tenant             @relation(fields: [tenantId], references: [id])
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  accounts           Account[]
+  sessions           Session[]
+  queryLogs          QueryLog[]
+  requirements       Requirement[]
+  migrationEnquiries MigrationEnquiry[]
 }
 
-model SignupRequest {
-  id          String    @id @default(cuid())
-  companyName String
-  country     String    @default("NZ")
-  bcVersion   String    @default("BC25")
-  email       String
-  verifyToken String    @unique
-  verifiedAt  DateTime?
-  activatedAt DateTime?
-  createdAt   DateTime  @default(now())
+model MigrationEnquiry {
+  id          String   @id @default(cuid())
+  tenantId    String
+  userId      String
+  contactName String?
+  phone       String
+  version     String
+  users       String
+  urgency     String?
+  notes       String?  @db.Text
+  status      String   @default("new")  // new | contacted | quoted | closed
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  user        User     @relation(fields: [userId], references: [id])
 }
 
 model Requirement {
@@ -193,70 +212,73 @@ model Requirement {
   description     String    @db.Text
   bcArea          String
   priority        String    // nice_to_have | important | critical
-  aiSpec          String?   @db.Text  // JSON incl. _genCount, _refinementHistory
+  aiSpec          String?   @db.Text  // JSON: full spec + _genCount + _history snapshots
   status          String    @default("draft")
   // Status pipeline: draft | submitted | needs_clarification | in_review |
   //   quoted | quote_rejected | deposit_required | deposit_paid |
   //   in_development | complete_pending_payment | fully_paid | rejected
   quote           Decimal?  @db.Decimal(10, 2)
   quoteApprovedAt DateTime?
-  depositAmount   Decimal?  @db.Decimal(10, 2)  // auto-set to 20% on acceptance
+  depositAmount   Decimal?  @db.Decimal(10, 2)
   depositPaidAt   DateTime?
   balancePaidAt   DateTime?
   consultantNote  String?   @db.Text
-  adminQuestions  String?   @db.Text  // current round questions
-  customerAnswers String?   @db.Text  // JSON [{q, a}] AI clarification answers
+  adminQuestions  String?   @db.Text
+  customerAnswers String?   @db.Text  // JSON [{q, a}]
   adminQALog      String?   @db.Text  // JSON [{round, questions, answers, askedAt, answeredAt}]
   quoteRejectedAt      DateTime?
   quoteRejectionReason String?  @db.Text
   devPlan         String?   @db.Text  // superadmin-only internal dev plan JSON
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
-  tenant          Tenant    @relation(...)
-  user            User      @relation(...)
+  tenant          Tenant    @relation(fields: [tenantId], references: [id])
+  user            User      @relation(fields: [userId], references: [id])
 }
 ```
 
-## SQL Migrations Required on Vercel Postgres
-All run via Vercel Dashboard → Storage → your Postgres DB → Query tab.
-These have already been applied to production. Documenting for any new environment:
+## SQL Migrations Applied to Production
 ```sql
--- Requirement table (initial)
--- See scripts/migrate-5.6-requirements.sql for full CREATE TABLE
+-- MigrationEnquiry table (added this session)
+CREATE TABLE IF NOT EXISTS "MigrationEnquiry" (
+  "id" TEXT NOT NULL,
+  "tenantId" TEXT NOT NULL,
+  "userId" TEXT NOT NULL,
+  "contactName" TEXT,
+  "phone" TEXT NOT NULL,
+  "version" TEXT NOT NULL,
+  "users" TEXT NOT NULL,
+  "urgency" TEXT,
+  "notes" TEXT,
+  "status" TEXT NOT NULL DEFAULT 'new',
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT "MigrationEnquiry_pkey" PRIMARY KEY ("id")
+);
+ALTER TABLE "MigrationEnquiry" ADD CONSTRAINT "MigrationEnquiry_tenantId_fkey"
+  FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "MigrationEnquiry" ADD CONSTRAINT "MigrationEnquiry_userId_fkey"
+  FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
--- Payment fields
+-- Earlier migrations (already applied):
 ALTER TABLE "Requirement" ADD COLUMN IF NOT EXISTS "depositAmount" DECIMAL(10,2);
 ALTER TABLE "Requirement" ADD COLUMN IF NOT EXISTS "depositPaidAt" TIMESTAMP(3);
 ALTER TABLE "Requirement" ADD COLUMN IF NOT EXISTS "balancePaidAt" TIMESTAMP(3);
-
--- Dev plan
 ALTER TABLE "Requirement" ADD COLUMN IF NOT EXISTS "devPlan" TEXT;
-
--- Quote rejection
 ALTER TABLE "Requirement" ADD COLUMN IF NOT EXISTS "quoteRejectedAt" TIMESTAMP(3);
 ALTER TABLE "Requirement" ADD COLUMN IF NOT EXISTS "quoteRejectionReason" TEXT;
-
--- Admin Q&A log
 ALTER TABLE "Requirement" ADD COLUMN IF NOT EXISTS "adminQALog" TEXT;
 ```
 
 ## BC Connection Architecture
-- Each tenant has a Cloudflare tunnel (`tunnelSubdomain.bespoxai.com`)
+- Each tenant has a Cloudflare tunnel (`{tunnelSubdomain}-agent.bespoxai.com`)
 - BC agent runs on-prem, proxies OData requests
 - Auth: `X-BespoxAI-Key: <tenant.apiKey>` header on every BC request
 - OData base: `https://{tunnelSubdomain}-agent.bespoxai.com/{bcInstance}/ODataV4/Company('{bcCompany}')/`
 - Health check: `GET /api/health` — polls BC agent, returns `{ ok, latencyMs, checkedAt }`
+- Superadmin can check any tenant: `GET /api/admin/tenant-health/[tenantId]`
 - `isConnected = health.status === 'ok'` — never assume connected
 
 ## Key Patterns
-
-### BC OData query (from `/api/query/route.ts`)
-```typescript
-const bcRes = await fetch(odataUrl, {
-  headers: { 'X-BespoxAI-Key': tenant.apiKey, Accept: 'application/json' },
-  signal: AbortSignal.timeout(30_000),
-})
-```
 
 ### Superadmin guard
 ```typescript
@@ -264,15 +286,24 @@ if ((session.user as any).role !== 'superadmin')
   return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 ```
 
-### Prisma (use `(prisma as any).model` for newer models not yet in generated types)
+### Prisma (use `(prisma as any).model` for newer models)
 ```typescript
 import { prisma } from '@/lib/db'
 const req = await (prisma as any).requirement.findUnique({ where: { id } })
 ```
 
 ### JSON repair (for truncated AI responses)
-Both ai-spec and dev-plan routes have a `repairJSON()` function that closes
-unclosed braces/brackets from truncated GPT responses. Always set `max_tokens: 4096`.
+Both ai-spec and dev-plan routes have `repairJSON()`. Always set `max_tokens: 4096`.
+
+### Password reset tokens
+Use `VerificationToken` table with `identifier: reset:${email}` prefix. 1 hour expiry.
+
+## AI Spec Generation (ai-spec route)
+- Always a **full rewrite** — never a partial patch of the previous spec
+- All context included every time: original description, all admin Q&A rounds, all customer answers, customer-requested changes
+- `_history` array stores previous spec snapshots with trigger + timestamp (keep last 5)
+- `_changeSummary` field: AI describes what changed in plain English
+- `_genCount` tracks generations; non-superadmin capped at 4
 
 ## Completed Stages
 - ✅ 5.1 Tenant settings page
@@ -280,77 +311,58 @@ unclosed braces/brackets from truncated GPT responses. Always set `max_tokens: 4
 - ✅ 5.3 Tier gating (trial / paid / enterprise)
 - ✅ 5.4 Public demo at `/demo` with mock BC data
 - ✅ 5.5 Self-service signup (form → verify email → admin activates → welcome email)
-- ✅ 5.6 Requirements Builder (full end-to-end — see below)
+- ✅ 5.6 Requirements Builder (full end-to-end)
+- ✅ 5.7 Superadmin dashboard (attention items, tenant health, migration enquiries)
+- ✅ 5.8 Migration Analyser landing page + lead capture
+- ✅ 5.9 Forgot/reset password flow
+- ✅ 5.10 AI spec full-rewrite with proper version history
 
 ## Stage 5.6 — Requirements Builder (COMPLETE)
-
 ### Customer flow
-1. New Request form → "Save & Generate Spec →" — spec auto-generates immediately
-2. AI spec: user story, acceptance criteria, BC objects, complexity estimate, assumptions, **clarifying questions**
-3. Customer answers questions per-question (structured Q&A pairs stored as JSON [{q,a}])
-4. "✏ Refine & Regenerate" — opens edit panel: change description, edit user story, edit criteria
-5. Up to **4 total generations** (1 initial + 3 refinements) — counter shown, superadmin exempt
-6. Submit for Review → admin reviews
-7. Admin may "Send Back with Questions" → `needs_clarification` → customer answers → resubmits
-8. Admin quotes → customer sees payment terms (20% deposit / 80% balance on completion)
-9. Customer accepts → `deposit_required` (20% auto-calculated) → admin confirms deposit → `deposit_paid`
-10. Admin starts dev → `in_development` → marks complete → `complete_pending_payment` → confirms balance → `fully_paid`
-11. Customer can reject quote (with reason) → admin sees reason, revises quote → customer resubmits
-
-### Admin flow (Customisations tab in `/admin`)
-- Sees all tenants' requirements with status badges
-- Send Back with Questions → accumulates in `adminQALog` (all rounds preserved)
-- **BC Object Editor** — edit/add/remove bcObjects from spec before dev plan
-- **AI Dev Plan** (superadmin only, dark panel):
-  - Queries live BC instance via OData to get actual field lists before generating
-  - Checks if planned fields already exist — flags existing vs missing
-  - GPT-4o generates: tasks with hours/phase/AL code snippets, estimated hours, suggested day rate, calculated quote, quoting notes (internal), risks, testing plan, deployment notes
-  - Code snippets: filename + placement instruction + AL code block
-  - BC connection status shown: `🔌 BC live · Item, Customer` or not connected
+1. New Request → "Save & Generate Spec →" — spec auto-generates
+2. AI spec: user story, acceptance criteria, BC objects, complexity, assumptions, clarifying questions
+3. Customer answers questions (structured Q&A pairs stored as JSON [{q,a}])
+4. "✏ Refine & Regenerate" — up to 4 total generations (superadmin exempt)
+5. Submit → admin reviews → may send back with questions → customer resubmits
+6. Admin quotes → customer accepts (20% deposit) → dev → complete → final payment
 
 ### Status colour coding
 - Red: `rejected`, `quote_rejected`, `needs_clarification`
 - Amber: `submitted`, `in_review`, `deposit_required`, `complete_pending_payment`
 - Green: `quoted`, `deposit_paid`, `in_development`, `fully_paid`
 
-### Key files
-- `components/RequirementsBuilder.tsx` — customer-facing full UI (~800 lines)
-- `app/admin/page.tsx` — admin portal including `AdminRequirementsTab` (~1400 lines)
-- `app/api/requirements/route.ts` — list + create
-- `app/api/requirements/[id]/route.ts` — PATCH (status transitions, bcObjects patch, adminQALog accumulation) / DELETE
-- `app/api/requirements/[id]/ai-spec/route.ts` — AI spec generation with refinement mode, genCount, adminQALog context
-- `app/api/requirements/[id]/dev-plan/route.ts` — internal dev plan, live BC field introspection, superadmin only
-- `app/api/admin/requirements/route.ts` — all-tenants view, strips devPlan from non-superadmin
+## Stage 5.7 — Superadmin Dashboard (COMPLETE)
+- `SuperAdminDashboard` component replaces overview tab in `/admin`
+- Superadmin redirected from `/dashboard` → `/admin` automatically
+- Attention items: new customisation requests, customer replies, quote rejections, ready-to-start, pending signups, new migration enquiries
+- Tenant grid: live BC health check per tenant (parallel on load, refresh button per card)
+- Migration enquiries table with inline status selector (new → contacted → quoted → closed)
 
-## Dashboard
-- `app/dashboard/page.tsx` — main client component (~1000 lines)
-- Nav persists in URL `?view=xxx` — refresh lands on correct tab
-- Views: `assistant` | `health` | `customisations` | `cashflow`* | `monthend`* | `migration`*  (*soon)
-- `isConnected = health.status === 'ok'` — greeting and overview cards only shown when truly connected
-- **OverviewCards** component: fetches 4 live KPI cards in parallel (overdue debtors, cash, payables, revenue) — clickable to drill into assistant
-- `<Suspense>` wraps `DashboardInner` for `useSearchParams()`
+## Stage 5.8 — Migration Analyser (COMPLETE — Phase 1)
+- `MigrationAnalyzerLanding` component at `?view=migration` in dashboard
+- Sales page: hero, what's in the report, how it works, request form
+- Lead capture: saves `MigrationEnquiry` to DB + emails superadmin
+- Phase 2 (not built): object upload, AI analysis, PDF report generation
 
-## Navigation (fully wired)
-- `/` → redirects to `/index.html` (marketing page)
-- `/index.html` — all CTA buttons → `/login`
-- `/login` → on success → `/dashboard`; has "Request access →" link to `/signup`
-- `/signup` — logo links home; success links back to `/login`
-- `/demo` — public, no auth, mock BC data
-- `/admin` — superadmin only (middleware protected)
-- `/settings` — tenant_admin only
+## Navigation
+- `/` → `/index.html` (marketing)
+- `/login` → `/dashboard` (or `/admin` for superadmin)
+- `/forgot-password` → email → `/reset-password?token=&email=` → `/login`
+- `/signup` → public request form
+- `/demo` → public mock BC data
 
 ## Next Stages (not started)
-- **5.7 Stripe billing** — subscription management, webhook handling
-- **5.8 Microsoft SSO** — OAuth for BC SaaS customers
+- **Stripe billing** — subscription management, webhook handling
+- **Microsoft SSO** — OAuth for BC SaaS customers
+- **Migration Analyser Phase 2** — object upload, AI analysis, PDF report
 
 ## Known Patterns / Gotchas
-- Prisma `(prisma as any).model` needed for `Requirement` until `prisma generate` is run — Vercel handles this at build time
-- `useSearchParams()` must be inside `<Suspense>` in Next.js App Router — see `DashboardPage` wrapper pattern
+- `(prisma as any).model` needed for newer models (MigrationEnquiry etc) until Vercel rebuild
+- `useSearchParams()` must be inside `<Suspense>` in Next.js App Router
 - `[...new Set(arr)]` fails TypeScript — use `Array.from(new Set(arr))`
-- Literal type comparisons (e.g. `const X = 3` then `X !== 1`) cause TS errors — avoid or cast
-- GPT-4o responses can truncate → always set `max_tokens: 4096` and use `repairJSON()` fallback
-- `devPlan` field is stripped from GET `/api/requirements` responses for non-superadmin users
-- `adminQALog` accumulates all question rounds — never overwrites, always appends
-- Dashboard health check polls every 30s; `isConnected` only true when `health.status === 'ok'`
+- GPT-4o responses can truncate → always `max_tokens: 4096` + `repairJSON()` fallback
+- `devPlan` stripped from GET `/api/requirements` for non-superadmin
+- `adminQALog` always appends — never overwrites
 - Vercel Postgres schema changes = raw SQL `ALTER TABLE` — no `prisma db push` in production
-- No local dev environment — Rich works entirely through GitHub → Vercel
+- Tenant health check API at `/api/admin/tenant-health/[tenantId]` uses `/health` endpoint on BCAgent
+- Password reset uses `VerificationToken` with `identifier: reset:${email}` prefix to avoid collisions

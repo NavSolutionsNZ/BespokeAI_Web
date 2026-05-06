@@ -232,14 +232,14 @@ export default function SuperAdminDashboard({ onNavigate }: { onNavigate: (tab: 
               </div>
 
               <div style={{ display:'flex', gap:16, marginBottom:8 }}>
-                {[['Users',tenant._count.users],['Queries',tenant._count.queryLogs],['Custom.',tenant._count.requirements]].map(([l,v]) => (
+                {[['Users',tenant._count.users],['Queries',tenant._count.queryLogs],['Custom.',(tenant._count as any).requirements ?? 0]].map(([l,v]) => (
                   <div key={String(l)}>
                     <div style={{ fontFamily:'var(--font-mono)', fontSize:8, letterSpacing:'0.1em', textTransform:'uppercase', color:'var(--slate)', marginBottom:2 }}>{l}</div>
                     <div style={{ fontFamily:'var(--font-mono)', fontSize:13, color:'var(--ink)' }}>{v}</div>
                   </div>
                 ))}
               </div>
-              <div style={{ fontFamily:'var(--font-mono)', fontSize:9, color:'var(--slate)' }}>Last query: {tenant.queryLogs[0] ? relativeTime(tenant.queryLogs[0].createdAt) : 'never'}</div>
+              <div style={{ fontFamily:'var(--font-mono)', fontSize:9, color:'var(--slate)' }}>Last query: {(tenant.queryLogs ?? [])[0] ? relativeTime(tenant.queryLogs[0].createdAt) : 'never'}</div>
             </div>
           )
         })}

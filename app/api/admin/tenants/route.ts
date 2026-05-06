@@ -21,7 +21,8 @@ export async function GET() {
   const tenants = await prisma.tenant.findMany({
     orderBy: { createdAt: 'asc' },
     include: {
-      _count: { select: { users: true, queryLogs: true } },
+      _count: { select: { users: true, queryLogs: true, requirements: true } },
+      queryLogs: { orderBy: { createdAt: 'desc' }, take: 1, select: { createdAt: true } },
     },
   })
 

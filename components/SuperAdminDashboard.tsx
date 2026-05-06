@@ -1,0 +1,287 @@
+'use client'
+
+import { useState, useEffect, useCallback } from 'react'
+
+interface Tenant {
+  id: string; name: string; tunnelSubdomain: string; active: boolean
+  tier: string; createdAt: string
+  _count: { users: number; queryLogs: number; requirements: number }
+  queryLogs: { createdAt: string }[]
+}
+
+interface Requirement {
+  id: string; title: string; status: string; priority: string
+  createdAt: string; updatedAt: string
+  tenant: { name: string }
+  user: { name: string | null; email: string }
+}
+
+interface MigrationEnquiry {
+  id: string; contactName: string | null; phone: string
+  version: string; users: string; urgency: string | null
+  notes: string | null; status: string; createdAt: string
+  tenant: { name: string }
+  user: { name: string | null; email: string }
+}
+
+interface TenantHealth {
+  tenantId: string
+  status: 'checking' | 'ok' | 'error' | 'idle'
+  latencyMs?: number
+  error?: string
+}
+
+interface SignupRequest {
+  id: string; companyName: string; email: string
+  verifiedAt: string | null; activatedAt: string | null; createdAt: string
+}
+
+const ATTENTION: Record<string, { label: string; color: string; bg: string; border: string; action: string }> = {
+  submitted:                { label: 'New Request',            color: '#0A5C46', bg: 'rgba(10,92,70,0.06)',    border: 'rgba(10,92,70,0.2)',    action: 'Review & quote'      },
+  needs_clarification:      { label: 'Customer Replied',       color: '#1A9272', bg: 'rgba(26,146,114,0.06)',  border: 'rgba(26,146,114,0.25)', action: 'Review answers'      },
+  quote_rejected:           { label: 'Quote Rejected',         color: '#A32D2D', bg: 'rgba(163,45,45,0.06)',   border: 'rgba(163,45,45,0.2)',   action: 'Revise quote'        },
+  deposit_paid:             { label: 'Ready to Start',         color: '#C8952A', bg: 'rgba(200,149,42,0.08)',  border: 'rgba(200,149,42,0.25)', action: 'Begin development'   },
+  complete_pending_payment: { label: 'Awaiting Final Payment', color: '#C8952A', bg: 'rgba(200,149,42,0.08)',  border: 'rgba(200,149,42,0.25)', action: 'Confirm & close'     },
+}
+
+function relativeTime(date: string) {
+  const diff = Date.now() - new Date(date).getTime()
+  const m = Math.floor(diff / 60000)
+  if (m < 60)  return `${m}m ago`
+  const h = Math.floor(m / 60)
+  if (h < 24)  return `${h}h ago`
+  return `${Math.floor(h / 24)}d ago`
+}
+
+function TierBadge({ tier }: { tier: string }) {
+  const c: Record<string, [string,string]> = {
+    trial:      ['#C8952A', 'rgba(200,149,42,0.1)'],
+    paid:       ['#0A5C46', 'rgba(10,92,70,0.1)'],
+    enterprise: ['#1A9272', 'rgba(26,146,114,0.1)'],
+  }
+  const [color, bg] = c[tier] ?? c.trial
+  return (
+    <span style={{ fontFamily:'var(--font-mono)', fontSize:8, letterSpacing:'0.1em', textTransform:'uppercase', padding:'2px 8px', borderRadius:6, color, background:bg }}>{tier}</span>
+  )
+}
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return <div style={{ fontFamily:'var(--font-mono)', fontSize:9, letterSpacing:'0.18em', textTransform:'uppercase', color:'var(--slate)', marginBottom:12, marginTop:28 }}>{children}</div>
+}
+
+export default function SuperAdminDashboard({ onNavigate }: { onNavigate: (tab: string) => void }) {
+  const [requirements, setRequirements] = useState<Requirement[]>([])
+  const [enquiries,    setEnquiries]    = useState<MigrationEnquiry[]>([])
+  const [tenants,      setTenants]      = useState<Tenant[]>([])
+  const [signups,      setSignups]      = useState<SignupRequest[]>([])
+  const [health,       setHealth]       = useState<Record<string, TenantHealth>>({})
+  const [loading,      setLoading]      = useState(true)
+
+  useEffect(() => {
+    Promise.all([
+      fetch('/api/admin/requirements').then(r => r.json()),
+      fetch('/api/admin/migration-enquiries').then(r => r.json()),
+      fetch('/api/admin/tenants').then(r => r.json()),
+      fetch('/api/admin/signups').then(r => r.json()),
+    ]).then(([reqs, enqs, ten, sigs]) => {
+      setRequirements(reqs.requirements ?? [])
+      setEnquiries(enqs.enquiries ?? [])
+      setTenants(ten.tenants ?? [])
+      setSignups((sigs.signups ?? []).filter((s: SignupRequest) => s.verifiedAt && !s.activatedAt))
+      setLoading(false)
+    }).catch(() => setLoading(false))
+  }, [])
+
+  const checkHealth = useCallback(async (tenantId: string) => {
+    setHealth(prev => ({ ...prev, [tenantId]: { tenantId, status: 'checking' } }))
+    try {
+      const res  = await fetch(`/api/admin/tenant-health/${tenantId}`)
+      const data = await res.json()
+      setHealth(prev => ({ ...prev, [tenantId]: { tenantId, status: data.ok ? 'ok' : 'error', latencyMs: data.latencyMs, error: data.error } }))
+    } catch {
+      setHealth(prev => ({ ...prev, [tenantId]: { tenantId, status: 'error', error: 'Network error' } }))
+    }
+  }, [])
+
+  useEffect(() => {
+    if (tenants.length > 0) tenants.filter(t => t.active).forEach(t => checkHealth(t.id))
+  }, [tenants, checkHealth])
+
+  async function updateEnquiryStatus(id: string, status: string) {
+    await fetch('/api/admin/migration-enquiries', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, status }),
+    })
+    setEnquiries(prev => prev.map(e => e.id === id ? { ...e, status } : e))
+  }
+
+  const attentionReqs  = requirements.filter(r => r.status in ATTENTION)
+  const newEnquiries   = enquiries.filter(e => e.status === 'new')
+  const totalAttention = attentionReqs.length + newEnquiries.length + signups.length
+
+  if (loading) {
+    return <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:200, color:'var(--slate)', fontFamily:'var(--font-mono)', fontSize:11 }}>Loading dashboard…</div>
+  }
+
+  return (
+    <div style={{ maxWidth: 1000 }}>
+
+      {/* ── KPI bar ─────────────────────────────────────────────────────── */}
+      <div style={{ display:'flex', gap:14, marginBottom:8, flexWrap:'wrap' }}>
+        {[
+          { label:'Needs attention',  value:totalAttention, hi: totalAttention > 0 },
+          { label:'Active tenants',   value:tenants.filter(t=>t.active).length, hi:false },
+          { label:'Total users',      value:tenants.reduce((s,t)=>s+t._count.users,0), hi:false },
+          { label:'Pending signups',  value:signups.length, hi: signups.length > 0 },
+        ].map(k => (
+          <div key={k.label} style={{ flex:'1 1 160px', background: k.hi ? (totalAttention>0 ? 'rgba(163,45,45,0.06)' : 'rgba(10,92,70,0.06)') : 'var(--white)', border:'1px solid var(--fog)', borderRadius:12, padding:'16px 20px' }}>
+            <div style={{ fontFamily:'var(--font-mono)', fontSize:9, letterSpacing:'0.14em', textTransform:'uppercase', color:'var(--slate)', marginBottom:6 }}>{k.label}</div>
+            <div style={{ fontFamily:'var(--font-display)', fontSize:36, fontWeight:300, color: k.hi && k.value>0 ? '#A32D2D' : 'var(--ink)', lineHeight:1 }}>{k.value}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* ── Needs attention ─────────────────────────────────────────────── */}
+      <SectionLabel>Needs attention</SectionLabel>
+
+      {totalAttention === 0 && (
+        <div style={{ background:'var(--white)', border:'1px solid var(--fog)', borderRadius:10, padding:'20px 24px', color:'var(--slate)', fontSize:13, display:'flex', alignItems:'center', gap:10, fontFamily:'var(--font-body)' }}>
+          ✅ Nothing needs attention right now — you&apos;re all caught up.
+        </div>
+      )}
+
+      {attentionReqs.map(req => {
+        const s = ATTENTION[req.status]
+        return (
+          <div key={req.id} style={{ background:s.bg, border:`1px solid ${s.border}`, borderRadius:10, padding:'14px 18px', marginBottom:8, display:'flex', alignItems:'center', gap:16 }}>
+            <div style={{ flex:1, minWidth:0 }}>
+              <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:4 }}>
+                <span style={{ fontFamily:'var(--font-mono)', fontSize:8, letterSpacing:'0.1em', textTransform:'uppercase', color:s.color, fontWeight:600 }}>{s.label}</span>
+                <span style={{ fontFamily:'var(--font-mono)', fontSize:8, color:'var(--slate)' }}>· {req.tenant.name}</span>
+              </div>
+              <div style={{ fontFamily:'var(--font-body)', fontSize:13, fontWeight:600, color:'var(--ink)', marginBottom:2 }}>{req.title}</div>
+              <div style={{ fontFamily:'var(--font-mono)', fontSize:9, color:'var(--slate)' }}>{req.user.name||req.user.email} · updated {relativeTime(req.updatedAt)}</div>
+            </div>
+            <button onClick={() => onNavigate('requirements')} style={{ flexShrink:0, background:'none', border:`1px solid ${s.border}`, borderRadius:7, padding:'6px 14px', cursor:'pointer', fontFamily:'var(--font-mono)', fontSize:9, color:s.color, whiteSpace:'nowrap' }}>
+              {s.action} →
+            </button>
+          </div>
+        )
+      })}
+
+      {newEnquiries.map(enq => (
+        <div key={enq.id} style={{ background:'rgba(26,146,114,0.05)', border:'1px solid rgba(26,146,114,0.2)', borderRadius:10, padding:'14px 18px', marginBottom:8, display:'flex', alignItems:'center', gap:16 }}>
+          <div style={{ fontSize:20, flexShrink:0 }}>🏗️</div>
+          <div style={{ flex:1, minWidth:0 }}>
+            <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:4 }}>
+              <span style={{ fontFamily:'var(--font-mono)', fontSize:8, letterSpacing:'0.1em', textTransform:'uppercase', color:'#1A9272', fontWeight:600 }}>Migration Enquiry</span>
+              <span style={{ fontFamily:'var(--font-mono)', fontSize:8, color:'var(--slate)' }}>· {enq.tenant.name}</span>
+            </div>
+            <div style={{ fontFamily:'var(--font-body)', fontSize:13, fontWeight:600, color:'var(--ink)', marginBottom:2 }}>{enq.version} · {enq.users}</div>
+            <div style={{ fontFamily:'var(--font-mono)', fontSize:9, color:'var(--slate)' }}>{enq.contactName||enq.user.email} · {enq.phone} · {enq.urgency||'urgency not specified'} · {relativeTime(enq.createdAt)}</div>
+            {enq.notes && <div style={{ fontFamily:'var(--font-body)', fontSize:12, color:'var(--slate)', marginTop:4, fontStyle:'italic' }}>"{enq.notes}"</div>}
+          </div>
+          <button onClick={() => updateEnquiryStatus(enq.id,'contacted')} style={{ flexShrink:0, background:'#1A9272', color:'#fff', border:'none', borderRadius:7, padding:'6px 14px', cursor:'pointer', fontFamily:'var(--font-mono)', fontSize:9 }}>
+            Mark contacted
+          </button>
+        </div>
+      ))}
+
+      {signups.map(sig => (
+        <div key={sig.id} style={{ background:'rgba(200,149,42,0.05)', border:'1px solid rgba(200,149,42,0.2)', borderRadius:10, padding:'14px 18px', marginBottom:8, display:'flex', alignItems:'center', gap:16 }}>
+          <div style={{ fontSize:20, flexShrink:0 }}>📋</div>
+          <div style={{ flex:1 }}>
+            <div style={{ fontFamily:'var(--font-mono)', fontSize:8, letterSpacing:'0.1em', textTransform:'uppercase', color:'#C8952A', fontWeight:600, marginBottom:4 }}>Signup Awaiting Activation</div>
+            <div style={{ fontFamily:'var(--font-body)', fontSize:13, fontWeight:600, color:'var(--ink)', marginBottom:2 }}>{sig.companyName}</div>
+            <div style={{ fontFamily:'var(--font-mono)', fontSize:9, color:'var(--slate)' }}>{sig.email} · verified {relativeTime(sig.verifiedAt!)}</div>
+          </div>
+          <button onClick={() => onNavigate('signups')} style={{ flexShrink:0, background:'none', border:'1px solid rgba(200,149,42,0.3)', borderRadius:7, padding:'6px 14px', cursor:'pointer', fontFamily:'var(--font-mono)', fontSize:9, color:'#C8952A' }}>
+            Activate →
+          </button>
+        </div>
+      ))}
+
+      {/* ── Tenant connection status ─────────────────────────────────────── */}
+      <SectionLabel>Tenant connections</SectionLabel>
+
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(280px, 1fr))', gap:12 }}>
+        {tenants.map(tenant => {
+          const h = health[tenant.id]
+          const [statusColor, statusBg, statusLabel] = !h || h.status==='idle'
+            ? ['var(--slate)', 'rgba(59,82,73,0.08)', 'Not checked']
+            : h.status==='checking'
+            ? ['var(--slate)', 'rgba(59,82,73,0.08)', 'Checking…']
+            : h.status==='ok'
+            ? ['var(--jade)', 'rgba(26,146,114,0.08)', `Live · ${h.latencyMs}ms`]
+            : ['#E24B4A', 'rgba(226,75,74,0.08)', 'Offline']
+
+          return (
+            <div key={tenant.id} style={{ background:'var(--white)', border:'1px solid var(--fog)', borderRadius:12, padding:'16px 18px', opacity:tenant.active?1:0.55 }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:10 }}>
+                <div>
+                  <div style={{ fontFamily:'var(--font-body)', fontSize:13, fontWeight:600, color:'var(--ink)', marginBottom:4 }}>{tenant.name}</div>
+                  <TierBadge tier={tenant.tier} />
+                </div>
+                {!tenant.active && <span style={{ fontFamily:'var(--font-mono)', fontSize:8, color:'#A32D2D', letterSpacing:'0.1em', textTransform:'uppercase' }}>Inactive</span>}
+              </div>
+
+              <div style={{ display:'flex', alignItems:'center', gap:8, background:statusBg, borderRadius:8, padding:'7px 10px', marginBottom:10 }}>
+                <div style={{ width:6, height:6, borderRadius:'50%', flexShrink:0, background:statusColor, animation:h?.status==='checking'?'pulse 1s infinite':'none' }} />
+                <span style={{ fontFamily:'var(--font-mono)', fontSize:9, letterSpacing:'0.08em', color:statusColor, flex:1 }}>{statusLabel}</span>
+                <button onClick={() => checkHealth(tenant.id)} disabled={h?.status==='checking'} style={{ background:'none', border:'none', cursor:h?.status==='checking'?'default':'pointer', fontFamily:'var(--font-mono)', fontSize:12, color:'var(--slate)', padding:0 }}>↻</button>
+              </div>
+
+              <div style={{ display:'flex', gap:16, marginBottom:8 }}>
+                {[['Users',tenant._count.users],['Queries',tenant._count.queryLogs],['Custom.',tenant._count.requirements]].map(([l,v]) => (
+                  <div key={String(l)}>
+                    <div style={{ fontFamily:'var(--font-mono)', fontSize:8, letterSpacing:'0.1em', textTransform:'uppercase', color:'var(--slate)', marginBottom:2 }}>{l}</div>
+                    <div style={{ fontFamily:'var(--font-mono)', fontSize:13, color:'var(--ink)' }}>{v}</div>
+                  </div>
+                ))}
+              </div>
+              <div style={{ fontFamily:'var(--font-mono)', fontSize:9, color:'var(--slate)' }}>Last query: {tenant.queryLogs[0] ? relativeTime(tenant.queryLogs[0].createdAt) : 'never'}</div>
+            </div>
+          )
+        })}
+      </div>
+
+      {/* ── All migration enquiries table ───────────────────────────────── */}
+      {enquiries.length > 0 && (
+        <>
+          <SectionLabel>All migration enquiries</SectionLabel>
+          <div style={{ background:'var(--white)', border:'1px solid var(--fog)', borderRadius:12, overflow:'hidden' }}>
+            <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
+              <thead>
+                <tr style={{ borderBottom:'1px solid var(--fog)' }}>
+                  {['Tenant','Contact','Version','Users','Urgency','Status','Received'].map(h => (
+                    <th key={h} style={{ padding:'10px 14px', textAlign:'left', fontFamily:'var(--font-mono)', fontSize:9, letterSpacing:'0.1em', textTransform:'uppercase', color:'var(--slate)', fontWeight:500 }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {enquiries.map(enq => (
+                  <tr key={enq.id} style={{ borderBottom:'1px solid var(--fog)' }}>
+                    <td style={{ padding:'10px 14px', fontFamily:'var(--font-body)', color:'var(--ink)' }}>{enq.tenant.name}</td>
+                    <td style={{ padding:'10px 14px' }}>
+                      <div style={{ fontFamily:'var(--font-body)', fontSize:12 }}>{enq.contactName||enq.user.name||'—'}</div>
+                      <div style={{ fontFamily:'var(--font-mono)', fontSize:9, color:'var(--slate)' }}>{enq.phone}</div>
+                    </td>
+                    <td style={{ padding:'10px 14px', fontFamily:'var(--font-mono)', fontSize:10, color:'var(--slate)' }}>{enq.version}</td>
+                    <td style={{ padding:'10px 14px', fontFamily:'var(--font-mono)', fontSize:10, color:'var(--slate)' }}>{enq.users}</td>
+                    <td style={{ padding:'10px 14px', fontFamily:'var(--font-mono)', fontSize:10, color:'var(--slate)' }}>{enq.urgency||'—'}</td>
+                    <td style={{ padding:'10px 14px' }}>
+                      <select value={enq.status} onChange={e=>updateEnquiryStatus(enq.id,e.target.value)} style={{ fontFamily:'var(--font-mono)', fontSize:9, border:'1px solid var(--fog)', borderRadius:6, padding:'3px 6px', background:'var(--cream)', color:'var(--ink)', cursor:'pointer' }}>
+                        {['new','contacted','quoted','closed'].map(s=><option key={s} value={s}>{s}</option>)}
+                      </select>
+                    </td>
+                    <td style={{ padding:'10px 14px', fontFamily:'var(--font-mono)', fontSize:9, color:'var(--slate)' }}>{relativeTime(enq.createdAt)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}

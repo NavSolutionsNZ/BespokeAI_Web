@@ -144,6 +144,11 @@ function DashboardInner() {
   const isTenantAdmin = user?.role === 'tenant_admin' || user?.role === 'superadmin'
   const health = useHealthStatus()
 
+  // Superadmin has no tenant dashboard — send to admin portal
+  useEffect(() => {
+    if (user?.role === 'superadmin') router.replace('/admin')
+  }, [user?.role, router])
+
   // Persist active nav in URL ?view=xxx so refresh lands on the same tab
   const viewParam = (searchParams.get('view') as NavItem | null) ?? 'assistant'
   const [activeNav, setActiveNavState] = useState<NavItem>(viewParam)

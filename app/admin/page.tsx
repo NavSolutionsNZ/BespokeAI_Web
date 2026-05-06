@@ -5,6 +5,7 @@ export const dynamic = 'force-dynamic'
 import { useState, useEffect } from 'react'
 import { useSession, signOut } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
+import SuperAdminDashboard from '@/components/SuperAdminDashboard'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -399,67 +400,9 @@ export default function AdminPage() {
           )}
 
           {/* ── Overview tab ─────────────────────────────────────────────── */}
-          {tab === 'overview' && stats && (
-            <div style={{ maxWidth: 800 }}>
-              {/* KPI row */}
-              <div style={{ display: 'flex', gap: 16, marginBottom: 28, flexWrap: 'wrap' }}>
-                {[
-                  { label: 'Total queries', value: stats.totalQueries.toLocaleString() },
-                  { label: 'Queries today', value: stats.todayQueries.toLocaleString() },
-                  { label: 'Active tenants', value: stats.tenants.filter((t: any) => t.active).length.toString() },
-                  { label: 'Total users', value: users.length.toString() },
-                ].map((kpi, i) => (
-                  <div key={i} style={{ flex: '1 1 150px', background: i === 0 ? 'var(--forest)' : 'var(--white)', border: '1px solid var(--fog)', borderRadius: 12, padding: '16px 20px' }}>
-                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: i === 0 ? 'rgba(214,217,212,0.5)' : 'var(--slate)', marginBottom: 6 }}>{kpi.label}</div>
-                    <div style={{ fontFamily: 'var(--font-display)', fontSize: 32, fontWeight: 300, color: i === 0 ? 'var(--cream)' : 'var(--ink)', lineHeight: 1 }}>{kpi.value}</div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Per-tenant usage */}
-              <SectionHead>Usage by tenant</SectionHead>
-              <div style={{ background: 'var(--white)', border: '1px solid var(--fog)', borderRadius: 12, overflow: 'hidden' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-                  <thead>
-                    <tr style={{ borderBottom: '1px solid var(--fog)' }}>
-                      {['Tenant', 'Status', 'Users', 'Queries', 'Last query'].map(h => (
-                        <th key={h} style={thStyle}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {stats.tenants.map((t: any) => (
-                      <tr key={t.id} style={{ borderBottom: '1px solid var(--fog)' }}>
-                        <td style={tdStyle}>{t.name}</td>
-                        <td style={tdStyle}><StatusPill active={t.active} /></td>
-                        <td style={{ ...tdStyle, textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 11 }}>{t._count.users}</td>
-                        <td style={{ ...tdStyle, textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: 11 }}>{t._count.queryLogs}</td>
-                        <td style={{ ...tdStyle, fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--slate)' }}>
-                          {t.queryLogs[0] ? new Date(t.queryLogs[0].createdAt).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }) : '—'}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Top entities */}
-              {stats.topEntities.length > 0 && (
-                <>
-                  <SectionHead style={{ marginTop: 28 }}>Most queried entities</SectionHead>
-                  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                    {stats.topEntities.map((e: any) => (
-                      <div key={e.entity} style={{ background: 'var(--white)', border: '1px solid var(--fog)', borderRadius: 8, padding: '10px 16px', display: 'flex', gap: 12, alignItems: 'center' }}>
-                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--forest)' }}>{e.entity}</span>
-                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--slate)' }}>{e._count.entity}</span>
-                      </div>
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
+          {tab === 'overview' && (
+            <SuperAdminDashboard onNavigate={(t) => setTab(t as any)} />
           )}
-
           {/* ── Tenants tab ───────────────────────────────────────────────── */}
           {tab === 'tenants' && (
             <div style={{ maxWidth: 860 }}>

@@ -23,9 +23,10 @@ model Tenant {
   trialEndsAt     DateTime?                  // null = no expiry (paid/enterprise)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
-  users           User[]
-  queryLogs       QueryLog[]
-  requirements    Requirement[]
+  users               User[]
+  queryLogs           QueryLog[]
+  requirements        Requirement[]
+  migrationEnquiries  MigrationEnquiry[]
 }
 
 model User {
@@ -43,6 +44,7 @@ model User {
   sessions      Session[]
   queryLogs     QueryLog[]
   requirements  Requirement[]
+  migrationEnquiries MigrationEnquiry[]
 }
 
 model SignupRequest {
@@ -133,6 +135,24 @@ model Requirement {
   devPlan         String?   @db.Text  // JSON: internal superadmin-only development plan (tasks, hours, risks, quoting notes)
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  user   User   @relation(fields: [userId], references: [id])
+}
+
+model MigrationEnquiry {
+  id          String   @id @default(cuid())
+  tenantId    String
+  userId      String
+  contactName String?
+  phone       String
+  version     String
+  users       String
+  urgency     String?
+  notes       String?  @db.Text
+  status      String   @default("new")  // new | contacted | quoted | closed
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   tenant Tenant @relation(fields: [tenantId], references: [id])
   user   User   @relation(fields: [userId], references: [id])

@@ -25,6 +25,9 @@ model Tenant {
   stripeSubscriptionId String?                    // active Stripe subscription ID
   stripePriceId        String?                    // current price ID (to identify plan + interval)
   subscriptionStatus   String?  @default("inactive") // active | inactive | past_due | cancelled | trialing
+  cancelledAt          DateTime?
+  cancellationReason   String?   // billing_error | cancellation_requested | payment_disputed
+  cancellationFeedback String?   // feedback + comment from Stripe portal survey
   createdAt            DateTime @default(now())
   updatedAt       DateTime @updatedAt
   users               User[]

@@ -24,6 +24,14 @@ interface MigrationEnquiry {
   user: { name: string | null; email: string }
 }
 
+interface BillingStats {
+  mrr: number
+  active: number
+  newToday:  { count: number; valueNZD: number }
+  newMonth:  { count: number; valueNZD: number; list: { id: string; customer: string; plan: string; startedAt: string; valueNZD: number }[] }
+  cancelled: { count: number; list: { id: string; customer: string; plan: string; cancelledAt: string; reason: string | null; feedback: string | null; comment: string | null }[] }
+}
+
 interface TenantHealth {
   tenantId: string
   status: 'checking' | 'ok' | 'error' | 'idle'
@@ -76,6 +84,7 @@ export default function SuperAdminDashboard({ onNavigate }: { onNavigate: (tab: 
   const [signups,      setSignups]      = useState<SignupRequest[]>([])
   const [health,       setHealth]       = useState<Record<string, TenantHealth>>({})
   const [loading,      setLoading]      = useState(true)
+  const [billing,      setBilling]      = useState<BillingStats | null>(null)
 
   useEffect(() => {
     Promise.all([
@@ -83,11 +92,13 @@ export default function SuperAdminDashboard({ onNavigate }: { onNavigate: (tab: 
       fetch('/api/admin/migration-enquiries').then(r => r.json()),
       fetch('/api/admin/tenants').then(r => r.json()),
       fetch('/api/admin/signups').then(r => r.json()),
-    ]).then(([reqs, enqs, ten, sigs]) => {
+      fetch('/api/admin/billing-stats').then(r => r.json()),
+    ]).then(([reqs, enqs, ten, sigs, bil]) => {
       setRequirements(reqs.requirements ?? [])
       setEnquiries(enqs.enquiries ?? [])
       setTenants(ten.tenants ?? [])
       setSignups((sigs.signups ?? []).filter((s: SignupRequest) => s.verifiedAt && !s.activatedAt))
+      if (!bil.error) setBilling(bil)
       setLoading(false)
     }).catch(() => setLoading(false))
   }, [])
@@ -137,6 +148,20 @@ export default function SuperAdminDashboard({ onNavigate }: { onNavigate: (tab: 
           <div key={k.label} style={{ flex:'1 1 160px', background: k.hi ? (totalAttention>0 ? 'rgba(163,45,45,0.06)' : 'rgba(10,92,70,0.06)') : 'var(--white)', border:'1px solid var(--fog)', borderRadius:12, padding:'16px 20px' }}>
             <div style={{ fontFamily:'var(--font-mono)', fontSize:9, letterSpacing:'0.14em', textTransform:'uppercase', color:'var(--slate)', marginBottom:6 }}>{k.label}</div>
             <div style={{ fontFamily:'var(--font-display)', fontSize:36, fontWeight:300, color: k.hi && k.value>0 ? '#A32D2D' : 'var(--ink)', lineHeight:1 }}>{k.value}</div>
+          </div>
+        ))}
+
+        {/* Billing KPIs */}
+        {billing && [
+          { label:'MRR (NZD)',        value:`$${billing.mrr.toLocaleString()}`,          hi:false },
+          { label:'New today',        value:billing.newToday.count,                       sub:`$${billing.newToday.valueNZD.toLocaleString()}`, hi:false },
+          { label:'New this month',   value:billing.newMonth.count,                       sub:`$${billing.newMonth.valueNZD.toLocaleString()}`, hi:false },
+          { label:'Cancelled / month',value:billing.cancelled.count,                      hi:billing.cancelled.count > 0 },
+        ].map(k => (
+          <div key={k.label} style={{ flex:'1 1 160px', background: k.hi && billing.cancelled.count > 0 ? 'rgba(163,45,45,0.06)' : 'var(--white)', border:`1px solid ${ k.hi && billing.cancelled.count > 0 ? 'rgba(163,45,45,0.2)' : 'var(--fog)'}`, borderRadius:12, padding:'16px 20px' }}>
+            <div style={{ fontFamily:'var(--font-mono)', fontSize:9, letterSpacing:'0.14em', textTransform:'uppercase', color:'var(--slate)', marginBottom:6 }}>{k.label}</div>
+            <div style={{ fontFamily:'var(--font-display)', fontSize:36, fontWeight:300, color: k.hi && billing.cancelled.count > 0 ? '#A32D2D' : 'var(--forest)', lineHeight:1 }}>{k.value}</div>
+            {'sub' in k && k.sub && <div style={{ fontFamily:'var(--font-mono)', fontSize:10, color:'var(--slate)', marginTop:4 }}>{k.sub}</div>}
           </div>
         ))}
       </div>
@@ -202,6 +227,59 @@ export default function SuperAdminDashboard({ onNavigate }: { onNavigate: (tab: 
       ))}
 
       {/* ── Tenant connection status ─────────────────────────────────────── */}
+      {/* ── New subscriptions this month ──────────────────────────────── */}
+      {billing && billing.newMonth.list.length > 0 && (<>
+        <SectionLabel>New subscriptions this month</SectionLabel>
+        <div style={{ background:'var(--white)', border:'1px solid var(--fog)', borderRadius:12, overflow:'hidden', marginBottom:8 }}>
+          <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
+            <thead>
+              <tr style={{ borderBottom:'1px solid var(--fog)' }}>
+                {['Customer','Plan','Started','Value (NZD)'].map(h => (
+                  <th key={h} style={{ padding:'8px 14px', textAlign:'left', fontFamily:'var(--font-mono)', fontSize:9, letterSpacing:'0.1em', textTransform:'uppercase', color:'var(--slate)', fontWeight:500 }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {billing.newMonth.list.map((s,i) => (
+                <tr key={s.id} style={{ borderBottom: i < billing.newMonth.list.length-1 ? '1px solid var(--fog)' : 'none' }}>
+                  <td style={{ padding:'10px 14px', color:'var(--ink)' }}>{s.customer}</td>
+                  <td style={{ padding:'10px 14px', color:'var(--slate)', fontFamily:'var(--font-mono)', fontSize:11 }}>{s.plan}</td>
+                  <td style={{ padding:'10px 14px', color:'var(--slate)', fontFamily:'var(--font-mono)', fontSize:11 }}>{relativeTime(s.startedAt)}</td>
+                  <td style={{ padding:'10px 14px', color:'var(--forest)', fontFamily:'var(--font-mono)', fontSize:11, fontWeight:600 }}>${s.valueNZD.toLocaleString()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </>)}
+
+      {/* ── Cancellations this month ─────────────────────────────────────── */}
+      {billing && billing.cancelled.list.length > 0 && (<>
+        <SectionLabel>Cancellations this month</SectionLabel>
+        <div style={{ background:'var(--white)', border:'1px solid rgba(163,45,45,0.2)', borderRadius:12, overflow:'hidden', marginBottom:8 }}>
+          <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
+            <thead>
+              <tr style={{ borderBottom:'1px solid var(--fog)' }}>
+                {['Customer','Plan','Cancelled','Reason','Feedback'].map(h => (
+                  <th key={h} style={{ padding:'8px 14px', textAlign:'left', fontFamily:'var(--font-mono)', fontSize:9, letterSpacing:'0.1em', textTransform:'uppercase', color:'var(--slate)', fontWeight:500 }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {billing.cancelled.list.map((s,i) => (
+                <tr key={s.id} style={{ borderBottom: i < billing.cancelled.list.length-1 ? '1px solid var(--fog)' : 'none' }}>
+                  <td style={{ padding:'10px 14px', color:'var(--ink)' }}>{s.customer}</td>
+                  <td style={{ padding:'10px 14px', color:'var(--slate)', fontFamily:'var(--font-mono)', fontSize:11 }}>{s.plan}</td>
+                  <td style={{ padding:'10px 14px', color:'var(--slate)', fontFamily:'var(--font-mono)', fontSize:11 }}>{relativeTime(s.cancelledAt)}</td>
+                  <td style={{ padding:'10px 14px', fontFamily:'var(--font-mono)', fontSize:11, color: s.reason ? '#A32D2D' : 'var(--fog)' }}>{s.reason?.replace(/_/g,' ') ?? '—'}</td>
+                  <td style={{ padding:'10px 14px', color:'var(--slate)', fontSize:12, maxWidth:220 }}>{[s.feedback?.replace(/_/g,' '), s.comment].filter(Boolean).join(' · ') || '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </>)}
+
       <SectionLabel>Tenant connections</SectionLabel>
 
       <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(280px, 1fr))', gap:12 }}>

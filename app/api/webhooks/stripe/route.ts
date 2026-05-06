@@ -108,6 +108,7 @@ async function handleSubscriptionChange(sub: Stripe.Subscription) {
 
 async function handleSubscriptionDeleted(sub: Stripe.Subscription) {
   const customerId = sub.customer as string
+  const details = (sub as any).cancellation_details ?? {}
   await (prisma as any).tenant.updateMany({
     where: { stripeCustomerId: customerId },
     data: {
@@ -115,6 +116,9 @@ async function handleSubscriptionDeleted(sub: Stripe.Subscription) {
       stripePriceId: null,
       subscriptionStatus: 'cancelled',
       tier: 'free',
+      cancelledAt: new Date(),
+      cancellationReason: details.reason ?? null,
+      cancellationFeedback: [details.feedback, details.comment].filter(Boolean).join(' — ') || null,
     },
   })
 }

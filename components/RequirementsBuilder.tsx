@@ -948,3 +948,4 @@ const xBTN:React.CSSProperties={background:'none',border:'none',cursor:'pointer'
 function cxBg(c:string){return c==='Simple'?'rgba(26,146,114,0.08)':c==='Medium'?'rgba(200,149,42,0.08)':'rgba(163,45,45,0.06)'}
 function cxCol(c:string){return c==='Simple'?'#0F6E56':c==='Medium'?'#C8952A':'#A32D2D'}
 function cxBdr(c:string){return c==='Simple'?'rgba(26,146,114,0.25)':c==='Medium'?'rgba(200,149,42,0.25)':'rgba(163,45,45,0.2)'}
+

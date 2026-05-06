@@ -2,15 +2,43 @@
 
 ## GitHub Access
 - **Repo:** `NavSolutionsNZ/BespokeAI_Web`
-- **Token:** `<ASK_RICH_FOR_TOKEN>`
-- **Remote URL:** `https://<ASK_RICH_FOR_TOKEN>@github.com/NavSolutionsNZ/BespokeAI_Web.git`
+- **Token:** provided by Rich at the start of each session (ask if not provided)
+- **Base raw URL:** `https://raw.githubusercontent.com/NavSolutionsNZ/BespokeAI_Web/main/`
+- **API URL:** `https://api.github.com/repos/NavSolutionsNZ/BespokeAI_Web/contents/`
 
-## Autonomous Operation Rules
-- **Always clone, pull, and push directly** — never ask Rich to copy/paste code
-- `git clone <remote-url>` at the start of every session
-- Push every meaningful change: `git add -A && git commit -m "..." && git push origin HEAD:main`
-- **When you cannot act autonomously** (e.g. SQL migrations on Vercel Postgres, environment variables, DNS changes, Cloudflare tunnel config): provide the exact command or SQL to run, clearly labelled as a manual step
-- Never ask Rich to run local CLI commands — he has no local dev environment, everything deploys via Vercel from GitHub
+## Autonomous Operation Rules — EFFICIENCY FIRST
+
+### DO NOT clone the repo — it burns context and usage
+Instead, fetch only the files you need:
+```bash
+# Read a file
+curl -s -H "Authorization: token TOKEN" \
+  https://raw.githubusercontent.com/NavSolutionsNZ/BespokeAI_Web/main/path/to/file.tsx
+
+# Push a changed file (get SHA first, then update)
+SHA=$(curl -s -H "Authorization: token TOKEN" \
+  https://api.github.com/repos/NavSolutionsNZ/BespokeAI_Web/contents/path/to/file.tsx \
+  | python3 -c "import sys,json; print(json.load(sys.stdin)['sha'])")
+
+curl -s -X PUT -H "Authorization: token TOKEN" \
+  -H "Content-Type: application/json" \
+  https://api.github.com/repos/NavSolutionsNZ/BespokeAI_Web/contents/path/to/file.tsx \
+  -d "{"message":"commit message","content":"$(base64 -w0 /tmp/newfile.tsx)","sha":"$SHA"}"
+```
+
+### Workflow per change
+1. Read the specific file(s) you need via raw GitHub URL
+2. Make changes in `/tmp/` or `/home/claude/`
+3. Push each file individually via GitHub Contents API
+4. For new files (no SHA needed), omit the `sha` field in the PUT body
+
+### When you cannot act autonomously
+SQL migrations on Vercel Postgres, environment variables, DNS, Cloudflare tunnel config — provide the exact SQL/command clearly labelled as a **manual step for Rich**.
+
+### Never
+- Clone the whole repo
+- Ask Rich to copy/paste code
+- Ask Rich to run local commands (no local dev environment — everything via Vercel/GitHub)
 
 ## Tech Stack
 - **Framework:** Next.js 14 (App Router, `'use client'` where needed)

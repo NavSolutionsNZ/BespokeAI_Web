@@ -86,9 +86,16 @@ export async function GET() {
   }, 0)
 
   // ── Cancellations ─────────────────────────────────────────────────────────
-  const cancelledThisMonth = cancelledSubs.data.filter(
-    s => (s.canceled_at ?? 0) * 1000 >= monthStart.getTime()
-  )
+  // Build a set of customer IDs that still have an active subscription —
+  // if a cancelled sub belongs to one of these, it was an upgrade not a churn.
+  const activeCustomerIds = new Set(activeList.map(s => s.customer as string))
+
+  const cancelledThisMonth = cancelledSubs.data.filter(s => {
+    if ((s.canceled_at ?? 0) * 1000 < monthStart.getTime()) return false
+    // Exclude upgrades — customer still has an active sub
+    if (activeCustomerIds.has(s.customer as string)) return false
+    return true
+  })
 
   const cancellations = cancelledThisMonth.map(s => {
     const customer = s.customer as any

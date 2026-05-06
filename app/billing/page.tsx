@@ -180,7 +180,7 @@ function BillingPageInner() {
           {paid_plans.map(plan => {
             const isPopular = plan.id === 'assistant'
             const isCurrent = currentTier === plan.id
-            const priceId = interval === 'month' ? plan.monthlyPriceId : plan.annualPriceId
+            const priceId = (interval === 'month' ? plan.monthlyPriceId : plan.annualPriceId) ?? undefined
             const displayPrice = interval === 'month' ? plan.monthlyNZD : Math.round(plan.annualNZD / 12)
 
             return (

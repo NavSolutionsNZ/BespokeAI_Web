@@ -37,6 +37,10 @@ export async function sendVerificationEmail(to: string, companyName: string, tok
   })
 }
 
+export async function sendEmail({ to, subject, html }: { to: string; subject: string; html: string }) {
+  await transporter.sendMail({ from: FROM, to, subject, html })
+}
+
 export async function sendWelcomeEmail(to: string, companyName: string, tempPassword: string) {
   const loginUrl = `${process.env.NEXTAUTH_URL}/login`
   await transporter.sendMail({

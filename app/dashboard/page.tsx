@@ -91,7 +91,7 @@ const NAV_ITEMS: { id: NavItem; icon: string; label: string; badge?: string; soo
   { id: 'customisations', icon: '🛠️', label: 'Customisations' },
   { id: 'cashflow',       icon: '📊', label: 'Cash Flow', soon: true },
   { id: 'monthend',       icon: '📅', label: 'Month-End Close', soon: true },
-  { id: 'migration',      icon: '🏗️', label: 'Migration Analyser', soon: true },
+  { id: 'migration',      icon: '🏗️', label: 'Migration Analyser' },
 ]
 
 // ─── Health polling hook ──────────────────────────────────────────────────────

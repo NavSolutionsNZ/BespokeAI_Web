@@ -72,6 +72,24 @@ export default function AdminPage() {
   const [resetResult, setResetResult]             = useState<{ email: string; tempPassword: string } | null>(null)
   const [confirmDelete, setConfirmDelete]         = useState<string | null>(null)
 
+  // Stripe setup
+  const [stripeSetupRunning, setStripeSetupRunning] = useState(false)
+  const [stripeSetupResult, setStripeSetupResult]   = useState<any>(null)
+
+  async function runStripeSetup() {
+    setStripeSetupRunning(true)
+    setStripeSetupResult(null)
+    try {
+      const res = await fetch('/api/admin/stripe-setup', { method: 'POST' })
+      const data = await res.json()
+      setStripeSetupResult(data)
+    } catch (e: any) {
+      setStripeSetupResult({ error: e.message })
+    } finally {
+      setStripeSetupRunning(false)
+    }
+  }
+
   // Installer download form
   const [installerTenantId, setInstallerTenantId] = useState<string | null>(null)
   const [installerForm, setInstallerForm]         = useState({ bcUsername: '', bcPassword: '', bcPort: '8048', agentPort: '8080' })
@@ -401,7 +419,19 @@ export default function AdminPage() {
 
           {/* ── Overview tab ─────────────────────────────────────────────── */}
           {tab === 'overview' && (
-            <SuperAdminDashboard onNavigate={(t) => setTab(t as any)} />
+            <div>
+              <SuperAdminDashboard onNavigate={(t) => setTab(t as any)} />
+              <div style={{ marginTop: 32, padding: '20px 24px', background: 'var(--white)', borderRadius: 12, border: '1px solid var(--fog)', maxWidth: 560 }}>
+                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--slate)', marginBottom: 8 }}>Stripe Setup</div>
+                <p style={{ fontSize: 13, color: 'var(--slate)', margin: '0 0 12px' }}>Creates all subscription products and prices in Stripe. Run once after first deploy.</p>
+                <button onClick={runStripeSetup} disabled={stripeSetupRunning} style={{ padding: '8px 18px', background: 'var(--forest)', color: '#fff', border: 'none', borderRadius: 8, cursor: stripeSetupRunning ? 'not-allowed' : 'pointer', fontSize: 13, fontFamily: 'var(--font-body)', opacity: stripeSetupRunning ? 0.6 : 1 }}>
+                  {stripeSetupRunning ? 'Running…' : 'Create Stripe Products & Prices'}
+                </button>
+                {stripeSetupResult && (
+                  <pre style={{ marginTop: 12, fontSize: 11, background: '#f4f4f4', padding: 12, borderRadius: 8, overflowX: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>{JSON.stringify(stripeSetupResult, null, 2)}</pre>
+                )}
+              </div>
+            </div>
           )}
           {/* ── Tenants tab ───────────────────────────────────────────────── */}
           {tab === 'tenants' && (

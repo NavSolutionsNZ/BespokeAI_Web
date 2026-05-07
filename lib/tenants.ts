@@ -10,6 +10,11 @@ export interface TenantConfig {
   agentBaseUrl: string
   entityConfig: Record<string, boolean> | null
   country: string
+  navProduct: string | null
+  navVersion: string | null
+  lastCU: string | null
+  bcPort: number
+  agentPort: number
 }
 
 export async function getTenantById(tenantId: string): Promise<TenantConfig | null> {
@@ -19,6 +24,8 @@ export async function getTenantById(tenantId: string): Promise<TenantConfig | nu
       id: true, name: true, tunnelSubdomain: true,
       bcInstance: true, bcCompany: true, apiKey: true,
       entityConfig: true, country: true,
+      navProduct: true, navVersion: true, lastCU: true,
+      bcPort: true, agentPort: true,
     },
   })
   if (!tenant) return null
@@ -43,6 +50,11 @@ function mapTenant(tenant: {
   bcCompany: string
   apiKey: string
   entityConfig?: any
+  navProduct?: string | null
+  navVersion?: string | null
+  lastCU?: string | null
+  bcPort?: number | null
+  agentPort?: number | null
 }): TenantConfig {
   return {
     tenantId: tenant.id,
@@ -53,7 +65,12 @@ function mapTenant(tenant: {
     apiKey: tenant.apiKey,
     agentBaseUrl: `https://${tenant.tunnelSubdomain}-agent.bespoxai.com`,
     entityConfig: (tenant.entityConfig as Record<string, boolean> | null) ?? null,
-    country:      (tenant as any).country ?? 'NZ',
+    country:    (tenant as any).country ?? 'NZ',
+    navProduct: tenant.navProduct ?? null,
+    navVersion: tenant.navVersion ?? null,
+    lastCU:     tenant.lastCU ?? null,
+    bcPort:     tenant.bcPort ?? 8048,
+    agentPort:  tenant.agentPort ?? 8080,
   }
 }
 

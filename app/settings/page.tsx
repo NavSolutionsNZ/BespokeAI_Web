@@ -11,6 +11,8 @@ interface Tenant {
   id: string; name: string; tunnelSubdomain: string; bcInstance: string
   bcCompany: string; active: boolean; country: string; entityConfig: any
   tunnelId: string | null; createdAt: string
+  navProduct: string | null; navVersion: string | null; lastCU: string | null
+  bcPort: number; agentPort: number
 }
 interface TenantUser {
   id: string; name: string | null; email: string; role: string; active: boolean; createdAt: string
@@ -86,8 +88,12 @@ export default function SettingsPage() {
     if (!session) return
     Promise.all([fetch('/api/settings').then(r => r.json()), fetch('/api/settings/users').then(r => r.json())])
       .then(([td, ud]) => {
-        setTenant(td.tenant ?? null); setCountry(td.tenant?.country ?? 'NZ')
-        setEntityConfig(td.tenant?.entityConfig ?? {}); setUsers(ud.users ?? [])
+        const t = td.tenant ?? null
+        setTenant(t); setCountry(t?.country ?? 'NZ')
+        setEntityConfig(t?.entityConfig ?? {}); setUsers(ud.users ?? [])
+        // Pre-populate installer ports from saved tenant values
+        if (t?.bcPort)    setInstForm(f => ({ ...f, bcPort:    String(t.bcPort)    }))
+        if (t?.agentPort) setInstForm(f => ({ ...f, agentPort: String(t.agentPort) }))
         setLoading(false)
       }).catch(() => setLoading(false))
   }, [session])
@@ -103,6 +109,7 @@ export default function SettingsPage() {
   }, [session])
 
   async function saveCountry() { setSaving(true); const r = await fetch('/api/settings', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ country }) }); setSaving(false); toast$(r.ok ? 'Country updated' : 'Failed', r.ok) }
+  async function saveSystemConfig(data: Record<string, any>) { const r = await fetch('/api/settings', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }); toast$(r.ok ? 'Saved' : 'Failed', r.ok) }
   async function saveEntities() { setEntitySaving(true); const r = await fetch('/api/settings/entities', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ entityConfig }) }); setEntitySaving(false); toast$(r.ok ? 'Saved' : 'Failed', r.ok) }
 
   async function inviteUser() {
@@ -139,6 +146,8 @@ export default function SettingsPage() {
   async function downloadInstaller() {
     if (!instForm.bcUsername || !instForm.bcPassword) { toast$('BC username and password required', false); return }
     setInstLoading(true)
+    // Persist port values to tenant so they're remembered
+    await saveSystemConfig({ bcPort: instForm.bcPort, agentPort: instForm.agentPort })
     try {
       const r = await fetch('/api/settings/installer', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(instForm) })
       if (!r.ok) { toast$('Generation failed', false); setInstLoading(false); return }
@@ -261,7 +270,34 @@ export default function SettingsPage() {
               </div>
             </Card>
             <Card>
-              <Label>CFO Context Country</Label>
+              <Label>System Configuration</Label>
+              <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'var(--slate)', marginBottom: 18, lineHeight: 1.65 }}>Your BC or NAV version details help us tailor compatibility checks and support.</p>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 18 }}>
+                <div>
+                  <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--slate)', marginBottom: 5 }}>Product</div>
+                  <select defaultValue={tenant?.navProduct ?? ''} onChange={async e => { await saveSystemConfig({ navProduct: e.target.value }) }} style={{ width: '100%', fontFamily: 'var(--font-body)', fontSize: 13, color: 'var(--ink)', background: 'var(--parchment)', border: '1px solid var(--fog)', borderRadius: 8, padding: '8px 12px', cursor: 'pointer', outline: 'none' }}>
+                    <option value="">Not specified</option>
+                    <option value="BC">Business Central</option>
+                    <option value="NAV">Microsoft NAV</option>
+                    <option value="unsure">Not sure</option>
+                  </select>
+                </div>
+                <div>
+                  <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--slate)', marginBottom: 5 }}>Last CU</div>
+                  <input type="text" defaultValue={tenant?.lastCU ?? ''} placeholder="e.g. CU3" onBlur={async e => { e.target.style.borderColor = 'var(--fog)'; await saveSystemConfig({ lastCU: e.target.value }) }} style={{ width: '100%', fontFamily: 'var(--font-body)', fontSize: 13, color: 'var(--ink)', background: 'var(--parchment)', border: '1px solid var(--fog)', borderRadius: 8, padding: '8px 12px', outline: 'none', boxSizing: 'border-box' as const }} onFocus={e => (e.target.style.borderColor = 'var(--forest)')} />
+                </div>
+              </div>
+              <div>
+                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--slate)', marginBottom: 5 }}>OData / Agent Ports</div>
+                <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                  <input type="number" defaultValue={tenant?.bcPort ?? 8048} placeholder="BC port (8048)" onBlur={async e => { await saveSystemConfig({ bcPort: e.target.value }) }} style={{ width: 130, fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--ink)', background: 'var(--parchment)', border: '1px solid var(--fog)', borderRadius: 8, padding: '8px 12px', outline: 'none' }} onFocus={e => (e.target.style.borderColor = 'var(--forest)')} />
+                  <span style={{ color: 'var(--fog)', fontSize: 14 }}>·</span>
+                  <input type="number" defaultValue={tenant?.agentPort ?? 8080} placeholder="Agent port (8080)" onBlur={async e => { await saveSystemConfig({ agentPort: e.target.value }) }} style={{ width: 150, fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--ink)', background: 'var(--parchment)', border: '1px solid var(--fog)', borderRadius: 8, padding: '8px 12px', outline: 'none' }} onFocus={e => (e.target.style.borderColor = 'var(--forest)')} />
+                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--slate)' }}>saved on blur · pre-filled in installer</span>
+                </div>
+              </div>
+            </Card>
+            <Card>
               <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'var(--slate)', marginBottom: 18, lineHeight: 1.65 }}>Sets the tax, accounting, and compliance context for AI responses — GST rates, VAT rules, and local reporting standards.</p>
               <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
                 <select value={country} onChange={e => setCountry(e.target.value)} style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'var(--ink)', background: 'var(--parchment)', border: '1px solid var(--fog)', borderRadius: 8, padding: '8px 12px', cursor: 'pointer', outline: 'none' }}>

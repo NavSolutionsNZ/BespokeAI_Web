@@ -19,6 +19,11 @@ model Tenant {
   entityConfig    Json?
   tunnelId        String?
   country         String   @default("NZ")   // ISO country code for CFO/tax context
+  navProduct      String?                    // "BC" | "NAV" | "unsure"
+  navVersion      String?                    // e.g. "Business Central 2024 Wave 2 (BC25)"
+  lastCU          String?                    // e.g. "CU3" — free text
+  bcPort          Int      @default(8048)    // BC OData port (injected into installer)
+  agentPort       Int      @default(8080)    // BCAgent listening port (injected into installer)
   tier                 String   @default("trial") // "free" | "trial" | "assistant" | "manager" | "executive"
   trialEndsAt          DateTime?                  // null = no expiry
   stripeCustomerId     String?                    // Stripe customer ID
@@ -42,6 +47,8 @@ model User {
   name          String?
   password      String                           // bcrypt hashed
   role          String    @default("user")       // "superadmin" | "tenant_admin" | "user"
+  persona       String?                          // "cfo" | "finance" | "it" | "other"
+  onboardingDone Boolean  @default(false)
   active        Boolean   @default(true)
   tenantId      String
   tenant        Tenant    @relation(fields: [tenantId], references: [id])

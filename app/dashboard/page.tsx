@@ -149,10 +149,6 @@ function DashboardInner() {
     if (user?.role === 'superadmin') router.replace('/admin')
   }, [user?.role, router])
 
-  // Don't render anything until session is known, and never render for superadmin
-  // (prevents the CFO dashboard flashing briefly before the redirect fires)
-  if (!session || user?.role === 'superadmin') return null
-
   // Persist active nav in URL ?view=xxx so refresh lands on the same tab
   const viewParam = (searchParams.get('view') as NavItem | null) ?? 'assistant'
   const [activeNav, setActiveNavState] = useState<NavItem>(viewParam)
@@ -282,6 +278,9 @@ function DashboardInner() {
     .split(' ').map((w: string) => w[0]).slice(0, 2).join('').toUpperCase()
 
   // ─────────────────────────────────────────────────────────────────────────────
+  // Don't render anything until session is known, and never render for superadmin
+  // (prevents the CFO dashboard flashing briefly before the redirect fires)
+  if (!session || user?.role === 'superadmin') return null
 
   return (
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', fontFamily: 'var(--font-body)' }}>

@@ -308,7 +308,7 @@ export default function AdminPage() {
           ))}
 
           <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-            <button onClick={() => router.push('/dashboard')} style={{
+            <button onClick={() => router.back()} style={{
               width: '100%', padding: '9px 10px', borderRadius: 8, border: 'none',
               background: 'transparent', cursor: 'pointer', textAlign: 'left',
               fontFamily: 'var(--font-body)', fontSize: 13, color: 'rgba(214,217,212,0.5)',

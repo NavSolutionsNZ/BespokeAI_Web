@@ -484,3 +484,12 @@ Use `VerificationToken` table with `identifier: reset:${email}` prefix. 1 hour e
 - Stripe price IDs (`STRIPE_PRICE_*`) are server-only — never read in client components; use `/api/billing/status` to expose them
 - Stripe SDK v22 requires `apiVersion: '2026-04-22.dahlia'` — do not use older version strings
 - `lib/stripe.ts` uses a lazy Proxy — never throws at build time even if env var is missing
+- **Early `return null` guards must come AFTER all hooks** — placing one mid-component causes React error #310 ("rendered fewer hooks than previous render"). Always put session/role guards just before the JSX `return`.
+- **Tab state must be URL-tracked for back button to work** — pure `useState` tabs create no browser history entries; use `router.push('?tab=xxx')` + `useEffect` to sync on searchParams change (see `/admin/page.tsx` pattern)
+- **`router.back()` can exit to login** if there are no history entries within the app — use URL-tracked tabs so back button navigates between tabs before leaving the page
+
+## Navigation Patterns (established)
+- `/dashboard` tabs: tracked via `?view=xxx`, uses `router.replace` (no extra history entries per tab switch)
+- `/admin` tabs: tracked via `?tab=xxx`, uses `router.push` (each tab = one history entry, back button works)
+- Back buttons on `/billing`, `/settings`, `/admin` sidebar: use `router.back()` — NOT `router.push('/dashboard')`
+- Superadmin visiting `/dashboard`: renders `null` immediately (no flash), then `router.replace('/admin')` fires — guard is placed AFTER all hooks, just before the JSX `return`

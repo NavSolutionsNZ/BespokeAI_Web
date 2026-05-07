@@ -2,9 +2,9 @@
 
 export const dynamic = 'force-dynamic'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useSession, signOut } from 'next-auth/react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import SuperAdminDashboard from '@/components/SuperAdminDashboard'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -34,11 +34,33 @@ type Tab = 'overview' | 'tenants' | 'users' | 'entities' | 'signups' | 'requirem
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function AdminPage() {
+  return (
+    <Suspense fallback={null}>
+      <AdminPageInner />
+    </Suspense>
+  )
+}
+
+function AdminPageInner() {
   const { data: session } = useSession()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const user = session?.user as any
 
-  const [tab, setTab]           = useState<Tab>('overview')
+  // Tab is tracked in the URL (?tab=xxx) so the browser back button works
+  const tabParam = (searchParams.get('tab') as Tab | null) ?? 'overview'
+  const [tab, setTabState] = useState<Tab>(tabParam)
+
+  function setTab(id: Tab) {
+    setTabState(id)
+    router.push(`/admin?tab=${id}`)
+  }
+
+  // Sync state when URL changes (back/forward navigation)
+  useEffect(() => {
+    const t = (searchParams.get('tab') as Tab | null) ?? 'overview'
+    setTabState(t)
+  }, [searchParams])
   const [signups, setSignups]   = useState<any[]>([])
   const [signupsLoaded, setSignupsLoaded] = useState(false)
   const [signupsError, setSignupsError]   = useState<string | null>(null)

@@ -18,13 +18,22 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid email address' }, { status: 400 })
   }
 
-  // Check for duplicate pending signup
+  // Check for duplicate pending signup request
   const existing = await prisma.signupRequest.findFirst({
     where: { email, activatedAt: null },
   })
   if (existing) {
     return NextResponse.json(
       { error: 'A signup request for this email is already pending' },
+      { status: 409 }
+    )
+  }
+
+  // Check for already-activated account with this email
+  const existingUser = await prisma.user.findUnique({ where: { email } })
+  if (existingUser) {
+    return NextResponse.json(
+      { error: 'An account with this email address already exists' },
       { status: 409 }
     )
   }

@@ -36,7 +36,7 @@ export async function PATCH(req: NextRequest) {
   }
   const tenantId = (session.user as any).tenantId
   const body = await req.json().catch(() => ({}))
-  const { country, bcPort, agentPort, navProduct, navVersion, lastCU } = body
+  const { country, bcPort, agentPort, navProduct, navVersion, lastCU, bcInstance, bcCompany } = body
 
   const data: Record<string, any> = {}
 
@@ -59,6 +59,8 @@ export async function PATCH(req: NextRequest) {
   if (navProduct !== undefined) data.navProduct = navProduct || null
   if (navVersion !== undefined) data.navVersion = navVersion || null
   if (lastCU     !== undefined) data.lastCU     = lastCU     || null
+  if (bcInstance !== undefined) data.bcInstance = bcInstance || null
+  if (bcCompany  !== undefined) data.bcCompany  = bcCompany  || null
 
   if (Object.keys(data).length === 0) {
     return NextResponse.json({ error: 'Nothing to update' }, { status: 400 })

@@ -11,6 +11,8 @@ interface Tenant {
   id: string; name: string; tunnelSubdomain: string; bcInstance: string
   bcCompany: string; active: boolean; country: string; entityConfig: any
   tunnelId: string | null; createdAt: string
+  navProduct: string | null; navVersion: string | null; lastCU: string | null
+  bcPort: number; agentPort: number
 }
 interface TenantUser {
   id: string; name: string | null; email: string; role: string; active: boolean; createdAt: string
@@ -61,7 +63,7 @@ export default function SettingsPage() {
   const [toast,        setToast]        = useState<{ msg: string; ok: boolean } | null>(null)
   const [country,      setCountry]      = useState('NZ')
   const [health,       setHealth]       = useState<{ status: 'checking' | 'ok' | 'error'; ms: number | null }>({ status: 'checking', ms: null })
-  const [instForm,     setInstForm]     = useState({ bcUsername: '', bcPassword: '', bcPort: '8048', agentPort: '8080' })
+  const [instForm,     setInstForm]     = useState({ bcUsername: '', bcPassword: '', bcPort: '8048', agentPort: '8080', bcInstance: '', bcCompany: '' })
   const [instLoading,  setInstLoading]  = useState(false)
   const [inviteForm,   setInviteForm]   = useState({ email: '', name: '', role: 'user' })
   const [inviteResult, setInviteResult] = useState<{ tempPassword: string; email: string } | null>(null)
@@ -86,8 +88,13 @@ export default function SettingsPage() {
     if (!session) return
     Promise.all([fetch('/api/settings').then(r => r.json()), fetch('/api/settings/users').then(r => r.json())])
       .then(([td, ud]) => {
-        setTenant(td.tenant ?? null); setCountry(td.tenant?.country ?? 'NZ')
-        setEntityConfig(td.tenant?.entityConfig ?? {}); setUsers(ud.users ?? [])
+        const t = td.tenant ?? null
+        setTenant(t); setCountry(t?.country ?? 'NZ')
+        setEntityConfig(t?.entityConfig ?? {}); setUsers(ud.users ?? [])
+        if (t?.bcPort)     setInstForm(f => ({ ...f, bcPort:     String(t.bcPort)    }))
+        if (t?.agentPort)  setInstForm(f => ({ ...f, agentPort:  String(t.agentPort) }))
+        if (t?.bcInstance) setInstForm(f => ({ ...f, bcInstance: t.bcInstance        }))
+        if (t?.bcCompany)  setInstForm(f => ({ ...f, bcCompany:  t.bcCompany         }))
         setLoading(false)
       }).catch(() => setLoading(false))
   }, [session])
@@ -103,6 +110,7 @@ export default function SettingsPage() {
   }, [session])
 
   async function saveCountry() { setSaving(true); const r = await fetch('/api/settings', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ country }) }); setSaving(false); toast$(r.ok ? 'Country updated' : 'Failed', r.ok) }
+  async function saveSystemConfig(data: Record<string, any>) { const r = await fetch('/api/settings', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }); toast$(r.ok ? 'Saved' : 'Failed', r.ok) }
   async function saveEntities() { setEntitySaving(true); const r = await fetch('/api/settings/entities', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ entityConfig }) }); setEntitySaving(false); toast$(r.ok ? 'Saved' : 'Failed', r.ok) }
 
   async function inviteUser() {
@@ -139,6 +147,8 @@ export default function SettingsPage() {
   async function downloadInstaller() {
     if (!instForm.bcUsername || !instForm.bcPassword) { toast$('BC username and password required', false); return }
     setInstLoading(true)
+    // Persist port values to tenant so they're remembered
+    await saveSystemConfig({ bcPort: instForm.bcPort, agentPort: instForm.agentPort })
     try {
       const r = await fetch('/api/settings/installer', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(instForm) })
       if (!r.ok) { toast$('Generation failed', false); setInstLoading(false); return }
@@ -261,7 +271,34 @@ export default function SettingsPage() {
               </div>
             </Card>
             <Card>
-              <Label>CFO Context Country</Label>
+              <Label>System Configuration</Label>
+              <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'var(--slate)', marginBottom: 18, lineHeight: 1.65 }}>Your BC or NAV version details help us tailor compatibility checks and support.</p>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 18 }}>
+                <div>
+                  <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--slate)', marginBottom: 5 }}>Product</div>
+                  <select defaultValue={tenant?.navProduct ?? ''} onChange={async e => { await saveSystemConfig({ navProduct: e.target.value }) }} style={{ width: '100%', fontFamily: 'var(--font-body)', fontSize: 13, color: 'var(--ink)', background: 'var(--parchment)', border: '1px solid var(--fog)', borderRadius: 8, padding: '8px 12px', cursor: 'pointer', outline: 'none' }}>
+                    <option value="">Not specified</option>
+                    <option value="BC">Business Central</option>
+                    <option value="NAV">Microsoft NAV</option>
+                    <option value="unsure">Not sure</option>
+                  </select>
+                </div>
+                <div>
+                  <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--slate)', marginBottom: 5 }}>Last CU</div>
+                  <input type="text" defaultValue={tenant?.lastCU ?? ''} placeholder="e.g. CU3" onBlur={async e => { e.target.style.borderColor = 'var(--fog)'; await saveSystemConfig({ lastCU: e.target.value }) }} style={{ width: '100%', fontFamily: 'var(--font-body)', fontSize: 13, color: 'var(--ink)', background: 'var(--parchment)', border: '1px solid var(--fog)', borderRadius: 8, padding: '8px 12px', outline: 'none', boxSizing: 'border-box' as const }} onFocus={e => (e.target.style.borderColor = 'var(--forest)')} />
+                </div>
+              </div>
+              <div>
+                <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--slate)', marginBottom: 5 }}>OData / Agent Ports</div>
+                <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                  <input type="number" defaultValue={tenant?.bcPort ?? 8048} placeholder="BC port (8048)" onBlur={async e => { await saveSystemConfig({ bcPort: e.target.value }) }} style={{ width: 130, fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--ink)', background: 'var(--parchment)', border: '1px solid var(--fog)', borderRadius: 8, padding: '8px 12px', outline: 'none' }} onFocus={e => (e.target.style.borderColor = 'var(--forest)')} />
+                  <span style={{ color: 'var(--fog)', fontSize: 14 }}>·</span>
+                  <input type="number" defaultValue={tenant?.agentPort ?? 8080} placeholder="Agent port (8080)" onBlur={async e => { await saveSystemConfig({ agentPort: e.target.value }) }} style={{ width: 150, fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--ink)', background: 'var(--parchment)', border: '1px solid var(--fog)', borderRadius: 8, padding: '8px 12px', outline: 'none' }} onFocus={e => (e.target.style.borderColor = 'var(--forest)')} />
+                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--slate)' }}>saved on blur · pre-filled in installer</span>
+                </div>
+              </div>
+            </Card>
+            <Card>
               <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'var(--slate)', marginBottom: 18, lineHeight: 1.65 }}>Sets the tax, accounting, and compliance context for AI responses — GST rates, VAT rules, and local reporting standards.</p>
               <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
                 <select value={country} onChange={e => setCountry(e.target.value)} style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'var(--ink)', background: 'var(--parchment)', border: '1px solid var(--fog)', borderRadius: 8, padding: '8px 12px', cursor: 'pointer', outline: 'none' }}>
@@ -385,23 +422,77 @@ export default function SettingsPage() {
           {tab === 'installer' && <>
             <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 28, fontWeight: 400, color: 'var(--ink)', marginBottom: 10 }}>BC Agent Installer</h1>
             <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: 'var(--slate)', marginBottom: 28, lineHeight: 1.65 }}>Download a pre-configured installer for the BespoxAI BCAgent. Run it on the Windows Server hosting Business Central — it installs the agent, configures the Cloudflare tunnel, and starts the service automatically.</p>
-            <div style={{ background: 'var(--white)', borderRadius: 14, padding: '24px 28px', border: '1px solid var(--fog)', maxWidth: 480 }}>
-              <Label>BC Credentials</Label>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                {([['BC Username','bcUsername','text','DOMAIN\\username'],['BC Password','bcPassword','password',''],['BC OData Port','bcPort','text','8048'],['Agent Port','agentPort','text','8080']] as [string,string,string,string][]).map(([label,field,type,placeholder]) => (
-                  <div key={field}>
-                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--slate)', marginBottom: 5 }}>{label}</div>
-                    <input type={type} placeholder={placeholder} value={(instForm as any)[field]} onChange={e => setInstForm(f => ({ ...f, [field]: e.target.value }))}
-                      style={{ width: '100%', fontFamily: 'var(--font-body)', fontSize: 13, color: 'var(--ink)', background: 'var(--parchment)', border: '1px solid var(--fog)', borderRadius: 8, padding: '8px 12px', outline: 'none', boxSizing: 'border-box' as const }}
-                      onFocus={e => (e.target.style.borderColor = 'var(--forest)')} onBlur={e => (e.target.style.borderColor = 'var(--fog)')} />
-                  </div>
-                ))}
+
+            <Card>
+              <Label>BC Connection Details</Label>
+              <p style={{ fontFamily: 'var(--font-body)', fontSize: 12, color: 'var(--slate)', marginBottom: 18, lineHeight: 1.6 }}>These identify which Business Central instance to connect to. Instance and company are saved to your account — credentials are embedded in the installer only and never stored.</p>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+                <div>
+                  <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--slate)', marginBottom: 5 }}>BC Instance name</div>
+                  <input type="text" placeholder="e.g. BC" value={instForm.bcInstance}
+                    onChange={e => setInstForm(f => ({ ...f, bcInstance: e.target.value }))}
+                    style={{ width: '100%', fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--ink)', background: 'var(--parchment)', border: '1px solid var(--fog)', borderRadius: 8, padding: '8px 12px', outline: 'none', boxSizing: 'border-box' as const }}
+                    onFocus={e => (e.target.style.borderColor = 'var(--forest)')}
+                    onBlur={async e => { e.target.style.borderColor = 'var(--fog)'; if (e.target.value) await saveSystemConfig({ bcInstance: e.target.value }) }} />
+                  <p style={{ fontSize: 11, color: 'var(--slate)', marginTop: 4 }}>Service instance name in BC admin — usually "BC" or "NAV".</p>
+                </div>
+                <div>
+                  <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--slate)', marginBottom: 5 }}>BC Company name</div>
+                  <input type="text" placeholder="e.g. CRONUS International Ltd." value={instForm.bcCompany}
+                    onChange={e => setInstForm(f => ({ ...f, bcCompany: e.target.value }))}
+                    style={{ width: '100%', fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--ink)', background: 'var(--parchment)', border: '1px solid var(--fog)', borderRadius: 8, padding: '8px 12px', outline: 'none', boxSizing: 'border-box' as const }}
+                    onFocus={e => (e.target.style.borderColor = 'var(--forest)')}
+                    onBlur={async e => { e.target.style.borderColor = 'var(--fog)'; if (e.target.value) await saveSystemConfig({ bcCompany: e.target.value }) }} />
+                  <p style={{ fontSize: 11, color: 'var(--slate)', marginTop: 4 }}>Exact company name as it appears in BC.</p>
+                </div>
               </div>
-              <button onClick={downloadInstaller} disabled={instLoading} style={{ marginTop: 20, width: '100%', background: 'var(--forest)', color: '#fff', border: 'none', borderRadius: 10, padding: '11px', cursor: instLoading ? 'default' : 'pointer', fontFamily: 'var(--font-body)', fontSize: 14, fontWeight: 500, opacity: instLoading ? 0.7 : 1 }}>
-                {instLoading ? 'Generating…' : '⬇ Download Installer (.zip)'}
-              </button>
-              <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'var(--slate)', marginTop: 10, lineHeight: 1.5, textAlign: 'center' }}>Credentials are embedded in the installer and never stored by BespoxAI.</p>
-            </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+                <div>
+                  <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--slate)', marginBottom: 5 }}>BC Username</div>
+                  <input type="text" placeholder="DOMAIN\username" value={instForm.bcUsername}
+                    onChange={e => setInstForm(f => ({ ...f, bcUsername: e.target.value }))}
+                    style={{ width: '100%', fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--ink)', background: 'var(--parchment)', border: '1px solid var(--fog)', borderRadius: 8, padding: '8px 12px', outline: 'none', boxSizing: 'border-box' as const }}
+                    onFocus={e => (e.target.style.borderColor = 'var(--forest)')}
+                    onBlur={e  => (e.target.style.borderColor = 'var(--fog)')} />
+                  <p style={{ fontSize: 11, color: 'var(--slate)', marginTop: 4 }}>Windows / BC service account with OData access.</p>
+                </div>
+                <div>
+                  <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--slate)', marginBottom: 5 }}>BC Password</div>
+                  <input type="password" placeholder="••••••••" value={instForm.bcPassword}
+                    onChange={e => setInstForm(f => ({ ...f, bcPassword: e.target.value }))}
+                    style={{ width: '100%', fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--ink)', background: 'var(--parchment)', border: '1px solid var(--fog)', borderRadius: 8, padding: '8px 12px', outline: 'none', boxSizing: 'border-box' as const }}
+                    onFocus={e => (e.target.style.borderColor = 'var(--forest)')}
+                    onBlur={e  => (e.target.style.borderColor = 'var(--fog)')} />
+                  <p style={{ fontSize: 11, color: 'var(--slate)', marginTop: 4 }}>Never stored — embedded in installer only.</p>
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                <div>
+                  <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--slate)', marginBottom: 5 }}>BC OData Port · default 8048</div>
+                  <input type="number" value={instForm.bcPort}
+                    onChange={e => setInstForm(f => ({ ...f, bcPort: e.target.value }))}
+                    style={{ width: '100%', fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--ink)', background: 'var(--parchment)', border: '1px solid var(--fog)', borderRadius: 8, padding: '8px 12px', outline: 'none', boxSizing: 'border-box' as const }}
+                    onFocus={e => (e.target.style.borderColor = 'var(--forest)')}
+                    onBlur={async e => { e.target.style.borderColor = 'var(--fog)'; await saveSystemConfig({ bcPort: e.target.value }) }} />
+                </div>
+                <div>
+                  <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--slate)', marginBottom: 5 }}>Agent Port · default 8080</div>
+                  <input type="number" value={instForm.agentPort}
+                    onChange={e => setInstForm(f => ({ ...f, agentPort: e.target.value }))}
+                    style={{ width: '100%', fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--ink)', background: 'var(--parchment)', border: '1px solid var(--fog)', borderRadius: 8, padding: '8px 12px', outline: 'none', boxSizing: 'border-box' as const }}
+                    onFocus={e => (e.target.style.borderColor = 'var(--forest)')}
+                    onBlur={async e => { e.target.style.borderColor = 'var(--fog)'; await saveSystemConfig({ agentPort: e.target.value }) }} />
+                </div>
+              </div>
+            </Card>
+
+            <button onClick={downloadInstaller} disabled={instLoading} style={{ marginTop: 8, width: '100%', background: 'var(--forest)', color: '#fff', border: 'none', borderRadius: 10, padding: '12px', cursor: instLoading ? 'default' : 'pointer', fontFamily: 'var(--font-body)', fontSize: 14, fontWeight: 500, opacity: instLoading ? 0.7 : 1 }}>
+              {instLoading ? 'Generating…' : '⬇ Download Installer (.zip)'}
+            </button>
+            <p style={{ fontFamily: 'var(--font-body)', fontSize: 11, color: 'var(--slate)', marginTop: 10, lineHeight: 1.5, textAlign: 'center' }}>BC credentials are embedded in the installer and never stored by BespoxAI.</p>
           </>}
 
         </div>

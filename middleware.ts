@@ -51,12 +51,15 @@ export default withAuth(
 export const config = {
   matcher: [
     '/dashboard/:path*',
+    '/onboarding/:path*',
+    '/onboarding',
     '/admin',
     '/admin/:path*',
     '/settings/:path*',
     '/demo/:path*',
     '/signup/:path*',
     '/api/query',
+    '/api/onboarding',
     '/api/admin/:path*',
     '/api/settings/:path*',
     '/api/demo/:path*',

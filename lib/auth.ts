@@ -4,7 +4,6 @@ import bcrypt from 'bcryptjs'
 import { prisma } from './db'
 
 export const authOptions: NextAuthOptions = {
-  // We use JWT sessions — no DB session rows needed
   session: { strategy: 'jwt' },
 
   pages: {
@@ -39,27 +38,44 @@ export const authOptions: NextAuthOptions = {
           tenantId: user.tenantId,
           tenantName: user.tenant.name,
           role: user.role,
+          persona: user.persona,
+          onboardingDone: user.onboardingDone,
         }
       },
     }),
   ],
 
   callbacks: {
-    async jwt({ token, user }) {
-      // On sign-in, `user` is populated — stamp tenant into token
+    async jwt({ token, user, trigger }) {
+      // On sign-in, stamp all user fields into token
       if (user) {
-        token.tenantId = (user as any).tenantId
-        token.tenantName = (user as any).tenantName
-        token.role = (user as any).role
+        token.tenantId      = (user as any).tenantId
+        token.tenantName    = (user as any).tenantName
+        token.role          = (user as any).role
+        token.persona       = (user as any).persona ?? null
+        token.onboardingDone = (user as any).onboardingDone ?? false
+      }
+      // On session update() call — re-read from DB so onboardingDone refreshes
+      if (trigger === 'update' && token.sub) {
+        const fresh = await prisma.user.findUnique({
+          where: { id: token.sub },
+          select: { onboardingDone: true, persona: true },
+        })
+        if (fresh) {
+          token.onboardingDone = fresh.onboardingDone
+          token.persona        = fresh.persona ?? null
+        }
       }
       return token
     },
     async session({ session, token }) {
       if (session.user) {
-        (session.user as any).id = token.sub
-        ;(session.user as any).tenantId = token.tenantId
-        ;(session.user as any).tenantName = token.tenantName
-        ;(session.user as any).role = token.role
+        (session.user as any).id             = token.sub
+        ;(session.user as any).tenantId      = token.tenantId
+        ;(session.user as any).tenantName    = token.tenantName
+        ;(session.user as any).role          = token.role
+        ;(session.user as any).persona       = token.persona
+        ;(session.user as any).onboardingDone = token.onboardingDone
       }
       return session
     },

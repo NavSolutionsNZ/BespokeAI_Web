@@ -36,13 +36,36 @@ export async function PATCH(req: NextRequest) {
   }
   const tenantId = (session.user as any).tenantId
   const body = await req.json().catch(() => ({}))
-  const { country } = body
-  if (!country || typeof country !== 'string' || country.length > 4) {
-    return NextResponse.json({ error: 'Invalid country code' }, { status: 400 })
+  const { country, bcPort, agentPort, navProduct, navVersion, lastCU, bcInstance, bcCompany } = body
+
+  const data: Record<string, any> = {}
+
+  if (country !== undefined) {
+    if (typeof country !== 'string' || country.length > 4) {
+      return NextResponse.json({ error: 'Invalid country code' }, { status: 400 })
+    }
+    data.country = country.toUpperCase()
   }
-  const tenant = await prisma.tenant.update({
-    where: { id: tenantId },
-    data: { country: country.toUpperCase() },
-  })
+  if (bcPort !== undefined) {
+    const p = parseInt(bcPort, 10)
+    if (isNaN(p) || p < 1 || p > 65535) return NextResponse.json({ error: 'Invalid bcPort' }, { status: 400 })
+    data.bcPort = p
+  }
+  if (agentPort !== undefined) {
+    const p = parseInt(agentPort, 10)
+    if (isNaN(p) || p < 1 || p > 65535) return NextResponse.json({ error: 'Invalid agentPort' }, { status: 400 })
+    data.agentPort = p
+  }
+  if (navProduct !== undefined) data.navProduct = navProduct || null
+  if (navVersion !== undefined) data.navVersion = navVersion || null
+  if (lastCU     !== undefined) data.lastCU     = lastCU     || null
+  if (bcInstance !== undefined) data.bcInstance = bcInstance || null
+  if (bcCompany  !== undefined) data.bcCompany  = bcCompany  || null
+
+  if (Object.keys(data).length === 0) {
+    return NextResponse.json({ error: 'Nothing to update' }, { status: 400 })
+  }
+
+  const tenant = await (prisma as any).tenant.update({ where: { id: tenantId }, data })
   return NextResponse.json({ tenant })
 }

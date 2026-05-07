@@ -1,0 +1,498 @@
+'use client'
+export const dynamic = 'force-dynamic'
+
+import { useState, useEffect } from 'react'
+import { useSession, signOut } from 'next-auth/react'
+import { useRouter } from 'next/navigation'
+
+// ─── Data ─────────────────────────────────────────────────────────────────────
+
+const BC_VERSIONS = [
+  'Business Central 2024 Wave 2 (BC25)',
+  'Business Central 2024 Wave 1 (BC24)',
+  'Business Central 2023 Wave 2 (BC23)',
+  'Business Central 2023 Wave 1 (BC22)',
+  'Business Central 2022 Wave 2 (BC21)',
+  'Business Central 2022 Wave 1 (BC20)',
+  'Business Central 2021 Wave 2 (BC19)',
+  'Business Central 2021 Wave 1 (BC18)',
+  'Business Central 2020 Wave 2 (BC17)',
+  'Business Central 2020 Wave 1 (BC16)',
+  'Business Central 14 — 2019 Wave 1',
+  'Older / Not sure',
+]
+const NAV_VERSIONS = [
+  'NAV 2018 (NAV 12)',
+  'NAV 2017 (NAV 11)',
+  'NAV 2016 (NAV 10)',
+  'NAV 2015 (NAV 9)',
+  'NAV 2013 R2 (NAV 8)',
+  'NAV 2013 (NAV 7)',
+  'Older / Not sure',
+]
+
+const PERSONAS = [
+  { id: 'cfo',     label: 'CFO / Finance Lead',  desc: 'Responsible for financial reporting and strategy' },
+  { id: 'finance', label: 'Finance Assistant',    desc: 'Day-to-day financial data and reporting tasks'    },
+  { id: 'it',      label: 'IT / System Admin',    desc: 'Setting up and managing the BC environment'      },
+  { id: 'other',   label: 'Other',                desc: 'Another role within the organisation'             },
+]
+
+const STEPS = [
+  { label: 'Your role',    desc: 'Who you are'         },
+  { label: 'Your system',  desc: 'BC or NAV version'   },
+  { label: 'Your goals',   desc: 'What you want to do' },
+  { label: 'Connection',   desc: 'Connect your system' },
+  { label: 'All done',     desc: 'Ready to go'         },
+]
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function firstName(name: string | null | undefined) {
+  if (!name) return ''
+  return name.split(' ')[0]
+}
+
+// ─── Sub-components ───────────────────────────────────────────────────────────
+
+function Label({ children, optional }: { children: string; optional?: boolean }) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
+      <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--slate)' }}>{children}</div>
+      {optional && <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--fog)', letterSpacing: '0.06em' }}>optional</span>}
+    </div>
+  )
+}
+
+const inputStyle: React.CSSProperties = {
+  width: '100%', fontFamily: 'var(--font-body)', fontSize: 14, color: 'var(--ink)',
+  background: 'var(--parchment)', border: '1px solid var(--fog)', borderRadius: 8,
+  padding: '9px 12px', outline: 'none', boxSizing: 'border-box',
+}
+const primaryBtn: React.CSSProperties = {
+  fontFamily: 'var(--font-body)', fontSize: 14, fontWeight: 500,
+  padding: '11px 28px', background: 'var(--forest)', color: '#fff',
+  border: 'none', borderRadius: 8, cursor: 'pointer',
+}
+const backBtn: React.CSSProperties = {
+  fontFamily: 'var(--font-body)', fontSize: 14, color: 'var(--slate)',
+  background: 'none', border: 'none', cursor: 'pointer', padding: '11px 0',
+}
+
+// ─── Main ─────────────────────────────────────────────────────────────────────
+
+export default function OnboardingPage() {
+  const { data: session, status, update } = useSession()
+  const router = useRouter()
+
+  const [step,    setStep]    = useState(1)
+  const [loading, setLoading] = useState(true)
+  const [saving,  setSaving]  = useState(false)
+  const [error,   setError]   = useState('')
+
+  // Prefill state
+  const [prefillSource,    setPrefillSource]    = useState<'signup' | 'saved' | null>(null)
+  const [tenantName,       setTenantName]       = useState('')
+  const [userDisplayName,  setUserDisplayName]  = useState('')
+
+  // Step 1
+  const [persona, setPersona] = useState('')
+
+  // Step 2
+  const [navProduct, setNavProduct] = useState('')
+  const [navVersion, setNavVersion] = useState('')
+  const [lastCU,     setLastCU]     = useState('')
+
+  // Step 3
+  const [wantsToConnect, setWantsToConnect] = useState<boolean | null>(null)
+
+  // Step 4
+  const [bcPort,    setBcPort]    = useState('8048')
+  const [agentPort, setAgentPort] = useState('8080')
+
+  const user = session?.user as any
+
+  // Redirect guards
+  useEffect(() => {
+    if (status === 'loading') return
+    if (!session) { router.replace('/login'); return }
+    if (user?.onboardingDone) { router.replace('/dashboard'); return }
+  }, [status, session, user?.onboardingDone])
+
+  // Fetch prefill data
+  useEffect(() => {
+    if (!session) return
+    fetch('/api/onboarding')
+      .then(r => r.json())
+      .then(data => {
+        setTenantName(data.tenant?.name ?? '')
+        setUserDisplayName(data.user?.name ?? '')
+        if (data.user?.persona) setPersona(data.user.persona)
+        const p = data.prefill
+        if (p?.navProduct) setNavProduct(p.navProduct)
+        if (p?.navVersion) setNavVersion(p.navVersion)
+        if (p?.lastCU)     setLastCU(p.lastCU)
+        if (p?.bcPort)     setBcPort(String(p.bcPort))
+        if (p?.agentPort)  setAgentPort(String(p.agentPort))
+        // Track where the version came from for contextual copy
+        if (data.signupBcVersion && !data.prefill?.navProduct) setPrefillSource(null)
+        else if (data.signupBcVersion) setPrefillSource('signup')
+        else if (p?.navProduct)        setPrefillSource('saved')
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [session])
+
+  if (status === 'loading' || loading || !session || user?.onboardingDone) return (
+    <div style={{ minHeight: '100vh', background: 'var(--ink)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(214,217,212,0.3)' }}>Loading…</span>
+    </div>
+  )
+
+  // ── Step helpers ────────────────────────────────────────────────────────────
+
+  function sidebarState(n: number): 'done' | 'active' | 'upcoming' {
+    return n < step ? 'done' : n === step ? 'active' : 'upcoming'
+  }
+
+  function handleNext() {
+    setError('')
+    if (step === 1 && !persona)     { setError('Please select your role to continue.'); return }
+    if (step === 2 && !navProduct)  { setError('Please select your product to continue.'); return }
+    if (step === 3 && wantsToConnect === false) { setStep(5); return }
+    setStep(s => s + 1)
+  }
+
+  function handleBack() {
+    setError('')
+    if (step === 5 && wantsToConnect === false) { setStep(3); return }
+    setStep(s => s - 1)
+  }
+
+  async function finish() {
+    setSaving(true); setError('')
+    try {
+      const res = await fetch('/api/onboarding', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ persona, navProduct, navVersion, lastCU,
+          bcPort: parseInt(bcPort, 10) || 8048, agentPort: parseInt(agentPort, 10) || 8080, wantsToConnect }),
+      })
+      if (!res.ok) throw new Error()
+      await update()
+      router.replace('/dashboard')
+    } catch { setError('Something went wrong — please try again.'); setSaving(false) }
+  }
+
+  const totalSteps    = wantsToConnect === false ? 4 : 5
+  const versionOpts   = navProduct === 'BC' ? BC_VERSIONS : navProduct === 'NAV' ? NAV_VERSIONS : []
+  const isSaaS        = navProduct === 'BC' && /2022|2023|2024/.test(navVersion)
+  const fname         = firstName(userDisplayName)
+  const stepLabel     = (n: number) => `Step ${n} of ${totalSteps}`
+
+  // ── Sidebar ─────────────────────────────────────────────────────────────────
+
+  const Sidebar = () => (
+    <aside style={{ width: 260, flexShrink: 0, background: 'var(--ink)', display: 'flex', flexDirection: 'column', padding: '40px 28px', borderRight: '1px solid rgba(255,255,255,0.04)' }}>
+      <div style={{ marginBottom: 48 }}>
+        <div style={{ display: 'flex', alignItems: 'baseline' }}>
+          <span style={{ fontFamily: 'var(--font-display)', fontWeight: 500, fontSize: 22, color: 'var(--cream)', letterSpacing: '-0.3px' }}>Bespox</span>
+          <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 500, fontSize: 17, color: 'var(--amber)', letterSpacing: '0.04em', marginLeft: 3 }}>AI</span>
+        </div>
+        {tenantName && <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(214,217,212,0.3)', marginTop: 6 }}>{tenantName}</div>}
+      </div>
+      <nav style={{ flex: 1 }}>
+        {STEPS.map((s, i) => {
+          const n = i + 1
+          if (n === 4 && wantsToConnect === false) return null
+          const state = sidebarState(n)
+          return (
+            <div key={n} style={{ display: 'flex', alignItems: 'flex-start', gap: 14, marginBottom: 6, position: 'relative' }}>
+              {i < STEPS.length - 1 && !(n === 3 && wantsToConnect === false) && (
+                <div style={{ position: 'absolute', left: 14, top: 30, width: 1, height: 28, background: state === 'done' ? 'rgba(26,146,114,0.3)' : 'rgba(255,255,255,0.05)' }} />
+              )}
+              <div style={{ width: 28, height: 28, borderRadius: '50%', border: `1px solid ${state === 'done' ? 'var(--jade)' : state === 'active' ? 'var(--forest)' : 'rgba(214,217,212,0.15)'}`, background: state === 'done' ? 'rgba(26,146,114,0.2)' : state === 'active' ? 'rgba(10,92,70,0.4)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 11, fontWeight: 500, color: state === 'done' ? 'var(--jade)' : state === 'active' ? 'var(--cream)' : 'rgba(214,217,212,0.25)', fontFamily: 'var(--font-mono)', zIndex: 1 }}>
+                {state === 'done' ? '✓' : n}
+              </div>
+              <div style={{ paddingTop: 4 }}>
+                <div style={{ fontSize: 13, fontWeight: state === 'active' ? 600 : 400, color: state === 'active' ? 'var(--cream)' : 'rgba(214,217,212,0.35)' }}>{s.label}</div>
+                <div style={{ fontSize: 11, color: state === 'active' ? 'rgba(214,217,212,0.5)' : 'rgba(214,217,212,0.2)', marginTop: 1 }}>{s.desc}</div>
+              </div>
+            </div>
+          )
+        })}
+      </nav>
+      <button onClick={() => signOut({ callbackUrl: '/login' })} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(214,217,212,0.25)', fontFamily: 'var(--font-body)', fontSize: 12, textAlign: 'left', padding: 0, transition: 'color 0.15s' }} onMouseEnter={e => (e.currentTarget.style.color = 'rgba(214,217,212,0.55)')} onMouseLeave={e => (e.currentTarget.style.color = 'rgba(214,217,212,0.25)')}>↪ Sign out</button>
+    </aside>
+  )
+
+  // ── Render ──────────────────────────────────────────────────────────────────
+
+  return (
+    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', fontFamily: 'var(--font-body)' }}>
+      <Sidebar />
+      <main style={{ flex: 1, overflowY: 'auto', background: 'var(--cream)', display: 'flex', flexDirection: 'column' }}>
+
+        {/* Progress bar */}
+        <div style={{ height: 3, background: 'var(--fog)', flexShrink: 0 }}>
+          <div style={{ height: '100%', background: 'var(--forest)', width: `${(step / totalSteps) * 100}%`, transition: 'width 0.4s ease' }} />
+        </div>
+
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '48px 32px' }}>
+          <div style={{ width: '100%', maxWidth: 520 }}>
+
+            {/* ── Step 1: Role ── */}
+            {step === 1 && (
+              <div>
+                <div style={eyebrow}>{stepLabel(1)}</div>
+                <h1 style={heading}>
+                  {fname ? `Welcome, ${fname}.` : 'Welcome.'}<br />
+                  What's your role?
+                </h1>
+                <p style={subtext}>
+                  {tenantName ? `We've set up your workspace for ${tenantName}. ` : ''}
+                  Tell us your role so we can tailor the experience from day one.
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 32 }}>
+                  {PERSONAS.map(p => {
+                    const active = persona === p.id
+                    return (
+                      <button key={p.id} onClick={() => setPersona(p.id)}
+                        style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '14px 18px', border: `1.5px solid ${active ? 'var(--forest)' : 'var(--fog)'}`, borderRadius: 10, background: active ? 'rgba(10,92,70,0.06)' : 'var(--white)', cursor: 'pointer', textAlign: 'left', transition: 'all 0.15s' }}>
+                        <div style={{ width: 18, height: 18, borderRadius: '50%', border: `2px solid ${active ? 'var(--forest)' : 'var(--fog)'}`, background: active ? 'var(--forest)' : 'transparent', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          {active && <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#fff' }} />}
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--ink)' }}>{p.label}</div>
+                          <div style={{ fontSize: 12, color: 'var(--slate)', marginTop: 2 }}>{p.desc}</div>
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
+                {error && <p style={errStyle}>{error}</p>}
+                <button onClick={handleNext} style={primaryBtn}>Continue →</button>
+              </div>
+            )}
+
+            {/* ── Step 2: System ── */}
+            {step === 2 && (
+              <div>
+                <div style={eyebrow}>{stepLabel(2)}</div>
+                <h1 style={heading}>Your system</h1>
+                <p style={subtext}>
+                  {prefillSource === 'signup'
+                    ? `We've pre-filled this from your signup — just confirm or update if anything has changed.`
+                    : prefillSource === 'saved'
+                    ? `We have your system details on file — confirm or update below.`
+                    : `Tell us which version of Business Central or NAV you're running.`}
+                </p>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 20, marginBottom: 32 }}>
+                  {/* Product */}
+                  <div>
+                    <Label>Product</Label>
+                    <div style={{ display: 'flex', gap: 10 }}>
+                      {(['BC', 'NAV', 'unsure'] as const).map(p => {
+                        const labels = { BC: 'Business Central', NAV: 'Microsoft NAV', unsure: 'Not sure' }
+                        const active = navProduct === p
+                        return (
+                          <button key={p} onClick={() => { setNavProduct(p); setNavVersion('') }}
+                            style={{ flex: 1, padding: '10px 12px', border: `1.5px solid ${active ? 'var(--forest)' : 'var(--fog)'}`, borderRadius: 8, background: active ? 'rgba(10,92,70,0.06)' : 'var(--white)', cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: active ? 600 : 400, color: active ? 'var(--forest)' : 'var(--slate)', transition: 'all 0.15s' }}>
+                            {labels[p]}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Version */}
+                  {navProduct && navProduct !== 'unsure' && (
+                    <div>
+                      <Label>Version</Label>
+                      <select value={navVersion} onChange={e => setNavVersion(e.target.value)}
+                        style={{ ...inputStyle, cursor: 'pointer', color: navVersion ? 'var(--ink)' : 'var(--slate)', appearance: 'none' }}
+                        onFocus={e => (e.target.style.borderColor = 'var(--forest)')}
+                        onBlur={e  => (e.target.style.borderColor = 'var(--fog)')}>
+                        <option value="">Select version…</option>
+                        {versionOpts.map(o => <option key={o} value={o}>{o}</option>)}
+                      </select>
+                      {prefillSource && navVersion && (
+                        <p style={{ fontSize: 11, color: 'var(--jade)', marginTop: 5 }}>
+                          ✓ {prefillSource === 'signup' ? 'Pre-filled from your signup request' : 'Previously saved'}
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Last CU */}
+                  <div>
+                    <Label optional>Last cumulative update (CU)</Label>
+                    <input type="text" value={lastCU} placeholder="e.g. CU3, CU14, Update 23…"
+                      onChange={e => setLastCU(e.target.value)} style={inputStyle}
+                      onFocus={e => (e.target.style.borderColor = 'var(--forest)')}
+                      onBlur={e  => (e.target.style.borderColor = 'var(--fog)')} />
+                    <p style={{ fontSize: 11, color: 'var(--slate)', marginTop: 6, lineHeight: 1.5 }}>
+                      Found in BC/NAV under Help → About. Leave blank if unsure — you can update this later.
+                    </p>
+                  </div>
+                </div>
+
+                {error && <p style={errStyle}>{error}</p>}
+                <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                  <button onClick={handleBack} style={backBtn}>← Back</button>
+                  <button onClick={handleNext} style={primaryBtn}>Continue →</button>
+                </div>
+              </div>
+            )}
+
+            {/* ── Step 3: Connection intent ── */}
+            {step === 3 && (
+              <div>
+                <div style={eyebrow}>{stepLabel(3)}</div>
+                <h1 style={heading}>Connect your system</h1>
+                <p style={subtext}>
+                  Would you like to connect your {navProduct === 'BC' ? 'Business Central' : navProduct === 'NAV' ? 'NAV' : 'BC/NAV'} system now, or explore first and connect later?
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 32 }}>
+                  {[
+                    { value: true,  icon: '⚡', title: 'Connect now', desc: "We'll save your port settings. Your IT team downloads and runs the pre-configured installer from Settings." },
+                    { value: false, icon: '○',  title: 'Set up later', desc: 'Explore the platform first. Connect any time from Settings → BC Installer.' },
+                  ].map(opt => {
+                    const active = wantsToConnect === opt.value
+                    return (
+                      <button key={String(opt.value)} onClick={() => setWantsToConnect(opt.value)}
+                        style={{ display: 'flex', alignItems: 'flex-start', gap: 16, padding: '16px 18px', border: `1.5px solid ${active ? 'var(--forest)' : 'var(--fog)'}`, borderRadius: 10, background: active ? 'rgba(10,92,70,0.06)' : 'var(--white)', cursor: 'pointer', textAlign: 'left', transition: 'all 0.15s' }}>
+                        <div style={{ fontSize: 20, lineHeight: 1, marginTop: 2 }}>{opt.icon}</div>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--ink)' }}>{opt.title}</div>
+                          <div style={{ fontSize: 12, color: 'var(--slate)', marginTop: 4, lineHeight: 1.5 }}>{opt.desc}</div>
+                        </div>
+                        <div style={{ width: 18, height: 18, borderRadius: '50%', border: `2px solid ${active ? 'var(--forest)' : 'var(--fog)'}`, background: active ? 'var(--forest)' : 'transparent', flexShrink: 0, marginTop: 2, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          {active && <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#fff' }} />}
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
+                <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                  <button onClick={handleBack} style={backBtn}>← Back</button>
+                  <button onClick={handleNext} disabled={wantsToConnect === null}
+                    style={{ ...primaryBtn, opacity: wantsToConnect === null ? 0.4 : 1, cursor: wantsToConnect === null ? 'default' : 'pointer' }}>
+                    Continue →
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* ── Step 4: Connection details (conditional) ── */}
+            {step === 4 && wantsToConnect && (
+              <div>
+                <div style={eyebrow}>{stepLabel(4)}</div>
+                <h1 style={heading}>Port settings</h1>
+                <p style={subtext}>
+                  BespoxAI connects via a lightweight agent on your server. Confirm the ports below — these are pre-filled into the installer your IT team downloads from Settings.
+                </p>
+
+                {isSaaS && (
+                  <div style={{ background: 'rgba(200,149,42,0.08)', border: '1px solid rgba(200,149,42,0.25)', borderRadius: 8, padding: '12px 16px', marginBottom: 24 }}>
+                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--gold)', marginBottom: 4 }}>BC SaaS detected</div>
+                    <p style={{ fontSize: 12, color: 'var(--slate)', lineHeight: 1.55 }}>Your version may support direct API / OAuth — our team will confirm the best approach. Enter on-prem ports below if applicable.</p>
+                  </div>
+                )}
+
+                <div style={{ background: 'var(--white)', border: '1px solid var(--fog)', borderRadius: 12, padding: '20px 24px', marginBottom: 24 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 16 }}>
+                    <div>
+                      <Label>BC OData port</Label>
+                      <input type="number" value={bcPort} onChange={e => setBcPort(e.target.value)} style={{ ...inputStyle, fontFamily: 'var(--font-mono)' }}
+                        onFocus={e => (e.target.style.borderColor = 'var(--forest)')}
+                        onBlur={e  => (e.target.style.borderColor = 'var(--fog)')} />
+                      <p style={{ fontSize: 11, color: 'var(--slate)', marginTop: 5 }}>Port BC exposes for OData services. Default: 8048.</p>
+                    </div>
+                    <div>
+                      <Label>Agent port</Label>
+                      <input type="number" value={agentPort} onChange={e => setAgentPort(e.target.value)} style={{ ...inputStyle, fontFamily: 'var(--font-mono)' }}
+                        onFocus={e => (e.target.style.borderColor = 'var(--forest)')}
+                        onBlur={e  => (e.target.style.borderColor = 'var(--fog)')} />
+                      <p style={{ fontSize: 11, color: 'var(--slate)', marginTop: 5 }}>Port the BespoxAI agent listens on. Default: 8080.</p>
+                    </div>
+                  </div>
+                  <div style={{ borderTop: '1px solid var(--fog)', paddingTop: 14 }}>
+                    <p style={{ fontSize: 12, color: 'var(--slate)', lineHeight: 1.6, margin: 0 }}>
+                      These are saved and pre-filled in <strong>Settings → BC Installer</strong>. Your IT team enters BC credentials there and downloads a ready-to-run installer — no manual config needed.
+                    </p>
+                  </div>
+                </div>
+
+                {error && <p style={errStyle}>{error}</p>}
+                <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                  <button onClick={handleBack} style={backBtn}>← Back</button>
+                  <button onClick={handleNext} style={primaryBtn}>Continue →</button>
+                </div>
+              </div>
+            )}
+
+            {/* ── Step 5: Done ── */}
+            {step === 5 && (
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'rgba(26,146,114,0.12)', border: '2px solid var(--jade)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 28px', fontSize: 26 }}>✓</div>
+                <h1 style={{ ...heading, textAlign: 'center' }}>
+                  {fname ? `${fname}, you're all set.` : "You're all set."}
+                </h1>
+                <p style={{ ...subtext, textAlign: 'center', maxWidth: 400, margin: '0 auto 36px' }}>
+                  {wantsToConnect
+                    ? 'Your port settings are saved. Head to Settings → BC Installer when your IT team is ready.'
+                    : 'You can connect your system any time from Settings → BC Installer.'}
+                </p>
+
+                {/* Summary */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 36, textAlign: 'left' }}>
+                  {([
+                    ['Role',       PERSONAS.find(p => p.id === persona)?.label ?? persona],
+                    ['Company',    tenantName || '—'],
+                    ['Product',    navProduct === 'BC' ? 'Business Central' : navProduct === 'NAV' ? 'Microsoft NAV' : '—'],
+                    ['Version',    navVersion || '—'],
+                    ['Last CU',    lastCU     || '—'],
+                    ['Connection', wantsToConnect ? `Installer ready — ports ${bcPort} / ${agentPort}` : 'Set up later'],
+                  ] as [string,string][]).map(([k, v]) => (
+                    <div key={k} style={{ background: 'var(--white)', border: '1px solid var(--fog)', borderRadius: 10, padding: '12px 16px' }}>
+                      <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--slate)', marginBottom: 4 }}>{k}</div>
+                      <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--ink)' }}>{v}</div>
+                    </div>
+                  ))}
+                </div>
+
+                {error && <p style={errStyle}>{error}</p>}
+                <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
+                  <button onClick={handleBack} style={backBtn}>← Back</button>
+                  <button onClick={finish} disabled={saving} style={{ ...primaryBtn, opacity: saving ? 0.6 : 1, cursor: saving ? 'default' : 'pointer' }}>
+                    {saving ? 'Setting up…' : 'Go to dashboard →'}
+                  </button>
+                </div>
+              </div>
+            )}
+
+          </div>
+        </div>
+      </main>
+    </div>
+  )
+}
+
+// ─── Styles ───────────────────────────────────────────────────────────────────
+
+const eyebrow: React.CSSProperties = {
+  fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.12em',
+  textTransform: 'uppercase', color: 'var(--forest)', marginBottom: 10,
+}
+const heading: React.CSSProperties = {
+  fontFamily: 'var(--font-display)', fontSize: 38, fontWeight: 400,
+  color: 'var(--ink)', marginBottom: 8, lineHeight: 1.1,
+}
+const subtext: React.CSSProperties = {
+  fontSize: 14, color: 'var(--slate)', lineHeight: 1.65, marginBottom: 32, fontWeight: 300,
+}
+const errStyle: React.CSSProperties = {
+  fontSize: 12, color: '#A32D2D', marginBottom: 16,
+}

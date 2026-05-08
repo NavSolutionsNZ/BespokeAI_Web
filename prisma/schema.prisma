@@ -39,6 +39,7 @@ model Tenant {
   queryLogs           QueryLog[]
   requirements        Requirement[]
   migrationEnquiries  MigrationEnquiry[]
+  objectFiles         TenantObjectFile[]
 }
 
 model User {
@@ -59,6 +60,7 @@ model User {
   queryLogs     QueryLog[]
   requirements  Requirement[]
   migrationEnquiries MigrationEnquiry[]
+  uploadedObjects    TenantObjectFile[]
 }
 
 model SignupRequest {
@@ -155,8 +157,9 @@ model Requirement {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
-  tenant Tenant @relation(fields: [tenantId], references: [id])
-  user   User   @relation(fields: [userId], references: [id])
+  tenant  Tenant             @relation(fields: [tenantId], references: [id])
+  user    User               @relation(fields: [userId], references: [id])
+  objects TenantObjectFile[]
 }
 
 model MigrationEnquiry {
@@ -177,4 +180,26 @@ model MigrationEnquiry {
 
   tenant Tenant @relation(fields: [tenantId], references: [id])
   user   User   @relation(fields: [userId], references: [id])
+}
+
+model TenantObjectFile {
+  id            String    @id @default(cuid())
+  tenantId      String
+  requirementId String?
+  filename      String
+  objectType    String    @default("Unknown")
+  objectId      Int?
+  objectName    String
+  language      String    @default("AL")
+  summary       Json      @default("{}")
+  parseError    Boolean   @default(false)
+  uploadedAt    DateTime  @default(now())
+  uploadedById  String
+
+  tenant      Tenant       @relation(fields: [tenantId],      references: [id])
+  requirement Requirement? @relation(fields: [requirementId], references: [id])
+  uploadedBy  User         @relation(fields: [uploadedById],  references: [id])
+
+  @@index([tenantId])
+  @@index([requirementId])
 }

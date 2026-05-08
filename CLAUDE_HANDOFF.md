@@ -201,6 +201,7 @@ model TenantObjectFile {
   parseError    Boolean   @default(false)
   uploadedAt    DateTime  @default(now())
   uploadedById  String    // FK → User
+  relations: tenant / requirement / uploadedBy
 }
 ```
 
@@ -251,12 +252,21 @@ ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "onboardingDone" BOOLEAN DEFAULT fal
 - Scoped to `tenantId` — each customer's object set is independent
 - All tenant objects injected into ai-spec prompts for that tenant (across all requirements)
 
+## Automated Test Suite
+- Script: `REQUIREMENTS_AUTOTESTING_CONTEXT.md` — includes the test runner (`bespoxai-test.mjs`) and all context
+- Covers: auth, objects API (GET/POST/DELETE), AL parse, C/AL multi-object parse, parse error handling, access control, BC version in spec, spec context isolation
+- Run: `node bespoxai-test.mjs` (Node 18+, no npm install needed)
+- Corporate proxy: set `HTTPS_PROXY` env var before running if on VGNET
+- **Route returns full requirement object list after every write** — always find uploaded records by filename, not by index
+
 ## Completed Stages
 - ✅ 5.1–5.10 Core platform (settings, roles, tiers, demo, signup, requirements, admin, migration, passwords, AI spec)
 - ✅ 6.1–6.3 Stripe billing (foundation, subscription billing, billing stats)
 - ✅ 7.1–7.3 Onboarding wizard, duplicate email check, BC installer settings
 - ✅ 8.1 AI spec context isolation — per-requirement, version-aware, no cross-contamination
 - ✅ 8.2 Deployed BC object upload — AL/C/AL parser, superadmin upload UI, ai-spec injection
+- ✅ 9.1 Automated regression test suite for session 8 features (32/32 passing)
+- ✅ 9.2 Bug fixes: TenantObjectFile missing from schema.prisma (blank 500s on all objects routes), admin table overflow clipping (Users + Tenants), superadmin onboarding redirect race condition
 
 ## Next Stages
 - **6.4** Customisation payments — Stripe deposit, bypass, pay-in-full, balance
@@ -295,6 +305,7 @@ with open('file.tsx', 'w', encoding='utf-8') as f: f.write(content)
 - Multi-line `Array.from(matchAll(...))` — closing must be `))` not `)]`
 - `Array.from(new Set(arr))` — never `[...new Set(arr)]`
 - `(prisma as any).model` for models added after last Vercel type regeneration
+- **Always add new models to `schema.prisma`** — SQL migration alone is not enough; `prisma generate` runs from the schema at build time, so a model missing from the schema causes blank 500s at runtime even if the table exists in the DB
 - `useSearchParams()` must be inside `<Suspense>`
 - GPT-4o can truncate → always `max_tokens: 4096` + `repairJSON()`
 - `STRIPE_PRICE_*` server-only — fetch via `/api/billing/status` in client components
@@ -302,10 +313,13 @@ with open('file.tsx', 'w', encoding='utf-8') as f: f.write(content)
 - Early `return null` guards must come AFTER all hooks (React error #310)
 - Tab state must be URL-tracked — pure `useState` tabs break back button
 - Vercel Postgres = raw `ALTER TABLE` SQL only — no `prisma db push`
+- **Node 24 ESM**: `await` inside a bare `{}` block at module level is a syntax error — put async logic inside `async function` or use an async IIFE
+- **Admin tables**: use `overflowX: auto` + `minWidth` on table wrappers — `overflow: hidden` clips action button columns
+- **Parallel useEffects**: when multiple redirects fire from the same component (e.g. superadmin → /admin AND onboarding → /onboarding), guard each with role checks or they race
 
 ## Navigation
 - `/dashboard` tabs: `?view=xxx` with `router.replace`
 - `/admin` tabs: `?tab=xxx` with `router.push`
 - Back buttons: `router.back()` not `router.push('/dashboard')`
 - Superadmin → `/dashboard` immediately redirects to `/admin` (guard after all hooks)
-- New users → `/dashboard` immediately redirects to `/onboarding`
+- New users (non-superadmin only) → `/dashboard` immediately redirects to `/onboarding`

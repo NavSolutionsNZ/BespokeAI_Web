@@ -10,6 +10,62 @@ export const maxDuration = 60
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
 const MAX_GENS = 4  // 1 initial + 3 customer-driven refinements
 
+// ── BC/NAV version string ──────────────────────────────────────────────────────
+
+function resolveBcVersion(tenant: {
+  navProduct: string | null
+  navVersion: string | null
+  lastCU:     string | null
+  bcInstance: string
+  name:       string
+}, signupBcVersion?: string | null): string {
+  // Prefer onboarding-captured fields (most accurate — set by the tenant themselves)
+  if (tenant.navProduct && tenant.navVersion) {
+    const parts = [tenant.navVersion]
+    if (tenant.lastCU) parts.push(`CU: ${tenant.lastCU}`)
+    if (tenant.navProduct === 'NAV') parts.push('(C/AL — Navision on-premise)')
+    else if (tenant.navProduct === 'BC') {
+      // Detect on-prem BC14 which uses C/AL hybrid
+      const isOnPremHybrid = tenant.navVersion.toLowerCase().includes('14')
+      if (isOnPremHybrid) parts.push('(on-premise, C/AL + AL hybrid)')
+      else parts.push('(AL extensions)')
+    }
+    return parts.join(' — ')
+  }
+
+  // Fall back to signup request bcVersion code
+  if (signupBcVersion) {
+    const vMap: Record<string, string> = {
+      BC14:    'BC 14 (on-premise, C/AL + AL hybrid)',
+      BC15:    'BC 15 (AL extensions)',
+      BC16:    'BC 16 (AL extensions)',
+      BC17:    'BC 17 (AL extensions)',
+      BC18:    'BC 18 (AL extensions)',
+      BC19:    'BC 19 (AL extensions)',
+      BC20:    'BC 20 (AL extensions)',
+      BC21:    'BC 21 (AL extensions)',
+      BC22:    'BC 22 (AL extensions)',
+      BC23:    'BC 23 (AL extensions)',
+      BC24:    'BC 24 (AL extensions)',
+      BC25:    'BC 25 (AL extensions, latest)',
+      NAV2009: 'NAV 2009 (C/AL)',
+      NAV2013: 'NAV 2013 (C/AL)',
+      NAV2015: 'NAV 2015 (C/AL)',
+      NAV2016: 'NAV 2016 (C/AL)',
+      NAV2017: 'NAV 2017 (C/AL)',
+      NAV2018: 'NAV 2018 (C/AL)',
+    }
+    return vMap[signupBcVersion] ?? signupBcVersion
+  }
+
+  // Last resort — bcInstance gives some signal
+  if (tenant.bcInstance && tenant.bcInstance !== 'GWM_Dev') {
+    return `Business Central (instance: ${tenant.bcInstance} — version not confirmed)`
+  }
+
+  return 'Business Central / NAV (version not confirmed — assume latest BC SaaS unless context suggests otherwise)'
+}
+
 // ── System prompt ─────────────────────────────────────────────────────────────
 
 function buildSystemPrompt(bcVersion: string) {
@@ -23,14 +79,19 @@ function buildSystemPrompt(bcVersion: string) {
 
 The customer is running: **${bcVersion}**
 
+Tailor every part of your output to this specific version:
+- Reference the correct development model (C/AL for NAV and BC14 hybrid; AL extensions for BC15+)
+- Use exact standard object IDs relevant to this version (e.g. Table 36 Sales Header, Page 42, Codeunit 80)
+- Note any version-specific gotchas, deprecated patterns, or recommended approaches
+- For NAV versions: reference C/AL objects and modification approach
+- For BC SaaS: reference AL extension patterns, app dependencies, event subscribers
+
 SPEC GENERATION RULES:
-You are producing a COMPLETE, AUTHORITATIVE functional specification. This is always a FULL REWRITE — not a patch of a previous version.
+You are producing a COMPLETE, AUTHORITATIVE functional specification for ONE specific customisation requirement. This is always a FULL REWRITE — synthesise all context provided into a single, coherent, definitive spec.
 
-You will be given all available context: the original description, every round of Q&A, admin/consultant questions and answers, and any customer-requested changes. Your job is to synthesise ALL of this into a single, coherent, up-to-date specification that reflects the current understanding of the requirement.
+Do NOT reference previous versions or say "as before". The output must stand alone.
 
-Do NOT reference previous versions or say "as before". The output must stand alone as the definitive spec.
-
-For the _changeSummary field: briefly describe what is new or different in this version compared to what was originally described (e.g. "Added prerelease customer flag after admin Q&A. Extended validation to quotes and invoices."). For the initial generation, set this to "Initial specification".
+For the _changeSummary field: briefly describe what is new or different versus the original description (e.g. "Added prerelease customer flag after Q&A. Extended validation to quotes and invoices."). For the initial generation, set this to "Initial specification".
 
 Respond ONLY with valid JSON — no markdown, no preamble:
 {
@@ -53,16 +114,16 @@ Respond ONLY with valid JSON — no markdown, no preamble:
     "Only questions genuinely still unanswered after ALL context provided",
     "..."
   ],
-  "notes": "Technical notes specific to ${bcVersion}. Version-specific gotchas, recommended patterns.",
+  "notes": "Technical implementation notes specific to ${bcVersion}. Version-specific gotchas, recommended patterns, standard objects to leverage.",
   "_changeSummary": "What is new or different in this version"
 }
 
 Rules:
 - Generate 3–6 acceptance criteria (Given/When/Then format)
-- Reduce questions with each generation — only include what is genuinely still unclear
+- Reduce questions with each generation — only include what is genuinely still unclear after all Q&A
 - Complexity: Simple (1–3d), Medium (4–10d), Complex (10+d)
-- Be specific to ${bcVersion} — reference exact standard objects (Table 36, Page 42, Codeunit 80 etc)
-- For NAV versions reference C/AL; for BC14+ reference AL extensions`
+- Be specific to ${bcVersion} — reference exact standard objects for this version
+- The spec must be self-contained and fully understandable by a BC developer with no other context`
 }
 
 // ── JSON repair ───────────────────────────────────────────────────────────────
@@ -96,35 +157,37 @@ export async function POST(
 
   const user = session.user as any
 
+  // Include all version fields on the tenant
   const req_data = await (prisma as any).requirement.findUnique({
     where: { id: params.id },
-    include: { tenant: { select: { bcInstance: true, name: true } } },
+    include: {
+      tenant: {
+        select: {
+          name:       true,
+          bcInstance: true,
+          navProduct: true,
+          navVersion: true,
+          lastCU:     true,
+        },
+      },
+    },
   })
   if (!req_data) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   if (user.role !== 'superadmin' && req_data.tenantId !== user.tenantId)
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  // ── BC version ────────────────────────────────────────────────────────────
-  let bcVersion = 'Business Central (version not specified)'
+  // ── BC version — prefer onboarding fields, fall back to signup request ────
+  let signupBcVersion: string | null = null
   try {
     const signup = await (prisma as any).signupRequest.findFirst({
-      where: { companyName: { contains: req_data.tenant.name.split(' ')[0] } },
+      where:   { companyName: { contains: req_data.tenant.name.split(' ')[0] } },
       orderBy: { createdAt: 'desc' },
-      select: { bcVersion: true },
+      select:  { bcVersion: true },
     })
-    if (signup?.bcVersion) {
-      const vMap: Record<string, string> = {
-        BC14: 'BC 14 (on-premise, C/AL + AL hybrid)',
-        BC15: 'BC 15 (AL extensions)',
-        BC20: 'BC 20', BC21: 'BC 21', BC22: 'BC 22',
-        BC23: 'BC 23', BC24: 'BC 24', BC25: 'BC 25 (latest)',
-        NAV2018: 'NAV 2018 (C/AL)', NAV2017: 'NAV 2017 (C/AL)', NAV2016: 'NAV 2016 (C/AL)',
-      }
-      bcVersion = vMap[signup.bcVersion] ?? signup.bcVersion
-    } else if (req_data.tenant.bcInstance) {
-      bcVersion = `Business Central (instance: ${req_data.tenant.bcInstance})`
-    }
-  } catch { /* use default */ }
+    signupBcVersion = signup?.bcVersion ?? null
+  } catch { /* use null */ }
+
+  const bcVersion = resolveBcVersion(req_data.tenant, signupBcVersion)
 
   // ── Parse request body ────────────────────────────────────────────────────
   let bodyQA: Array<{q: string; a: string}> | null = null
@@ -164,9 +227,14 @@ export async function POST(
 
   const isRefinement = prevGenCount > 0
 
-  // ── Build context sections ────────────────────────────────────────────────
+  // ── Build context — only inputs specific to THIS requirement ─────────────
+  //
+  // Context is built fresh every time from the raw inputs for this requirement.
+  // We deliberately do NOT include spec version history summaries in the prompt —
+  // history is stored for the UI but the AI should synthesise from source inputs,
+  // not from its own previous interpretations.
 
-  // 1. AI clarifying Q&A answers (from current request or saved)
+  // 1. Customer answers to AI clarifying questions
   let aiQASection = ''
   const qaToUse = bodyQA ?? (() => {
     try {
@@ -179,14 +247,14 @@ export async function POST(
       qaToUse.map((p: any, i: number) => `Q${i+1}: ${p.q}\nA${i+1}: ${p.a}`).join('\n\n')
   }
 
-  // 2. All admin/consultant Q&A rounds (full log — every round, answered or not)
+  // 2. All consultant/admin Q&A rounds for this requirement
   let adminQASection = ''
   try {
     const qaLog = req_data.adminQALog ? JSON.parse(req_data.adminQALog) : []
     if (qaLog.length > 0) {
-      adminQASection = '\n--- Consultant/admin Q&A rounds (all rounds) ---\n' +
+      adminQASection = '\n--- Consultant/admin Q&A rounds ---\n' +
         qaLog.map((r: any) => [
-          `Round ${r.round} — asked ${new Date(r.askedAt).toLocaleDateString()}:`,
+          `Round ${r.round} — ${new Date(r.askedAt).toLocaleDateString()}:`,
           `Consultant questions:\n${r.questions}`,
           r.answers
             ? `Customer answers:\n${r.answers}`
@@ -209,13 +277,7 @@ export async function POST(
       changesSection = '\n--- Changes requested for this regeneration ---\n' + parts.join('\n\n')
   }
 
-  // 4. Previous history summaries (context only — no full snapshots in prompt)
-  let historySection = ''
-  if (prevHistory.length > 0) {
-    historySection = '\n--- Spec version history (context only) ---\n' +
-      prevHistory.map((h, i) => `v${i+1} (${new Date(h.at).toLocaleDateString()}): ${h.summary}`).join('\n')
-  }
-
+  // Assemble the prompt from this requirement's source inputs only
   const prompt = [
     `BC Area: ${req_data.bcArea}`,
     `Priority: ${req_data.priority.replace(/_/g, ' ')}`,
@@ -226,16 +288,15 @@ export async function POST(
     aiQASection,
     adminQASection,
     changesSection,
-    historySection,
   ].filter(Boolean).join('\n')
 
   // ── Call AI ───────────────────────────────────────────────────────────────
   let spec: any
   try {
     const completion = await openai.chat.completions.create({
-      model: 'gpt-4o',
+      model:       'gpt-4o',
       temperature: 0.2,
-      max_tokens: 4096,
+      max_tokens:  4096,
       messages: [
         { role: 'system', content: buildSystemPrompt(bcVersion) },
         { role: 'user',   content: prompt },
@@ -258,7 +319,7 @@ export async function POST(
     return NextResponse.json({ error: err.message ?? 'AI generation failed. Please try again.' }, { status: 500 })
   }
 
-  // ── Build history entry (snapshot of previous spec before overwriting) ────
+  // ── Build history entry (snapshot of previous spec — stored for UI only) ──
   const triggerDescription = (() => {
     if (bodyQA && bodyQA.length > 0)      return `Customer answered ${bodyQA.length} clarifying question${bodyQA.length > 1 ? 's' : ''}`
     if (customerRefinements.trim())        return `Customer refinement: ${customerRefinements.trim().slice(0, 80)}`
@@ -277,7 +338,7 @@ export async function POST(
           summary:  prevSpec._changeSummary ?? `Version ${prevGenCount}`,
           snapshot: (({ _genCount, _history, ...rest }) => rest)(prevSpec),
         },
-      ].slice(-5)  // keep last 5 snapshots
+      ].slice(-5)
     : []
 
   // ── Save ──────────────────────────────────────────────────────────────────

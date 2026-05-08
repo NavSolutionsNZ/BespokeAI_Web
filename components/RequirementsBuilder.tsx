@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 
 export interface Requirement {
   id: string; tenantId: string; userId: string; title: string; description: string
@@ -112,6 +112,9 @@ export default function RequirementsBuilder({ userRole, tenantId, bcConnected=fa
   const [sendBackText, setSBT]    = useState('')
 
   const [adminAnswerDraft, setAAD] = useState('')
+  const [objFiles, setObjFiles]     = useState<any[]>([])
+  const [objUploading, setObjUpload] = useState(false)
+  const objInputRef = useRef<HTMLInputElement>(null)
 
   // Quote rejection state
   const [showRejectQuote, setShowRQ]     = useState(false)
@@ -131,6 +134,16 @@ export default function RequirementsBuilder({ userRole, tenantId, bcConnected=fa
     finally { setLoading(false) }
   }
   useEffect(() => { load() }, [])
+  useEffect(() => {
+    if (isSuperadmin && selected?.status === 'fully_paid') {
+      fetch(`/api/requirements/${selected.id}/objects`)
+        .then(r => r.json())
+        .then(d => setObjFiles(d.objects ?? []))
+        .catch(() => {})
+    } else {
+      setObjFiles([])
+    }
+  }, [selected?.id, selected?.status, isSuperadmin])
 
   function selectReq(req:Requirement) {
     setSelected(req); setShowCreate(false)
@@ -221,6 +234,26 @@ export default function RequirementsBuilder({ userRole, tenantId, bcConnected=fa
     if (!selected||!rejectReason.trim()) return
     await patch(selected.id,{status:'quote_rejected',quoteRejectionReason:rejectReason.trim()})
     setShowRQ(false); setRejectReason('')
+  }
+
+  async function uploadObjects(reqId: string, files: FileList) {
+    setObjUpload(true)
+    try {
+      const fd = new FormData()
+      for (let i = 0; i < files.length; i++) fd.append('files', files[i])
+      const res = await fetch(`/api/requirements/${reqId}/objects`, { method: 'POST', body: fd })
+      const d = await res.json()
+      if (res.ok) setObjFiles(d.objects ?? [])
+      else alert(d.error ?? 'Upload failed')
+    } catch (e: any) { alert(e.message) }
+    finally { setObjUpload(false) }
+  }
+
+  async function deleteObjFile(reqId: string, fileId: string) {
+    if (!confirm('Remove this object record?')) return
+    const res = await fetch(`/api/requirements/${reqId}/objects/${fileId}`, { method: 'DELETE' })
+    if (res.ok) setObjFiles(prev => prev.filter((f: any) => f.id !== fileId))
+    else alert('Delete failed')
   }
 
   const filtered = reqs.filter(r=>{
@@ -866,6 +899,50 @@ export default function RequirementsBuilder({ userRole, tenantId, bcConnected=fa
                   <button onClick={()=>patch(req.id,{status:'rejected'})} disabled={actLoading} style={{...sBTN,color:'#A32D2D'}}>✕ Reject</button>
                 )}
               </div>
+
+              {/* Deployed Objects — superadmin upload after fully_paid */}
+              {isSuperadmin&&req.status==='fully_paid'&&(
+                <div style={{...crd,borderColor:'rgba(10,92,70,0.2)',background:'rgba(10,92,70,0.02)'}}>
+                  <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
+                    <label style={{...lbl,marginBottom:0,color:'var(--forest)'}}>Deployed BC Objects</label>
+                    <button
+                      onClick={()=>objInputRef.current?.click()}
+                      disabled={objUploading}
+                      style={{...pBTN,padding:'6px 14px',fontSize:12,opacity:objUploading?0.6:1}}
+                    >
+                      {objUploading?'Parsing...':'+ Upload Object Files'}
+                    </button>
+                    <input
+                      ref={objInputRef}
+                      type="file"
+                      multiple
+                      accept=".txt,.al"
+                      style={{display:'none'}}
+                      onChange={e=>{ if(e.target.files?.length) { uploadObjects(req.id,e.target.files); e.target.value='' } }}
+                    />
+                  </div>
+                  <p style={{fontFamily:'var(--font-body)',fontSize:11,color:'var(--slate)',lineHeight:1.55,marginBottom:objFiles.length?12:0}}>
+                    {objFiles.length===0
+                      ? 'Upload the delivered .al or C/AL .txt object files. The AI will use these to avoid conflicts in future requirements for this customer.'
+                      : `${objFiles.length} object${objFiles.length!==1?'s':''} on record for this tenant.`}
+                  </p>
+                  {objFiles.length>0&&(
+                    <div style={{display:'flex',flexDirection:'column',gap:6}}>
+                      {objFiles.map((obj:any)=>(
+                        <div key={obj.id} style={{display:'flex',alignItems:'center',gap:8,background:obj.parseError?'rgba(163,45,45,0.04)':'var(--cream)',border:`1px solid ${obj.parseError?'rgba(163,45,45,0.2)':'var(--fog)'}`,borderRadius:7,padding:'7px 10px'}}>
+                          <span style={{fontFamily:'var(--font-mono)',fontSize:8,letterSpacing:'0.08em',textTransform:'uppercase',color:obj.parseError?'#A32D2D':'var(--forest)',background:obj.parseError?'rgba(163,45,45,0.08)':'rgba(10,92,70,0.08)',border:`1px solid ${obj.parseError?'rgba(163,45,45,0.2)':'rgba(10,92,70,0.2)'}`,borderRadius:4,padding:'2px 6px',flexShrink:0}}>
+                            {obj.parseError?'parse err':obj.objectType}
+                          </span>
+                          {obj.objectId&&<span style={{fontFamily:'var(--font-mono)',fontSize:10,color:'var(--slate)',flexShrink:0}}>#{obj.objectId}</span>}
+                          <span style={{fontFamily:'var(--font-body)',fontSize:12,color:'var(--ink)',flex:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{obj.objectName}</span>
+                          <span style={{fontFamily:'var(--font-mono)',fontSize:8,color:'var(--slate)',flexShrink:0}}>{obj.language}</span>
+                          <button onClick={()=>deleteObjFile(req.id,obj.id)} style={{background:'none',border:'none',cursor:'pointer',color:'rgba(163,45,45,0.5)',fontSize:14,padding:'0 2px',lineHeight:1,flexShrink:0}} title="Remove">✕</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Balance due banner (customer) */}
               {!isSuperadmin&&req.status==='complete_pending_payment'&&(

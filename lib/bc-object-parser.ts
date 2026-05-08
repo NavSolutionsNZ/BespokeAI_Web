@@ -1,0 +1,280 @@
+/**
+ * BC/NAV object file parser
+ *
+ * Supports:
+ *   C/AL — .txt exports from NAV 2009 through BC 14 (may contain multiple objects)
+ *   AL   — .al extension files from BC 15+ (one object per file by convention)
+ *
+ * Best-effort: extracts what it can and sets parseError=true on unrecognised input.
+ * Raw file content is never stored — only the structured summary.
+ */
+
+export interface ParsedObject {
+  filename:   string
+  objectType: string        // Table, TableExtension, Page, Codeunit, Enum, etc.
+  objectId:   number | null
+  objectName: string
+  language:   'AL' | 'CAL'
+  summary:    Record<string, any>
+  parseError: boolean
+}
+
+// ── Language detection ────────────────────────────────────────────────────────
+
+function detectLanguage(content: string): 'AL' | 'CAL' {
+  // C/AL exports always open with "OBJECT <Type> <Id> <Name>"
+  return /^OBJECT\s+(Table|Page|Codeunit|Report|XMLport|Dataport|Query|MenuSuite)/im.test(content.trim())
+    ? 'CAL'
+    : 'AL'
+}
+
+// ── C/AL parsing ──────────────────────────────────────────────────────────────
+
+function splitCALObjects(content: string): string[] {
+  // A C/AL export can bundle many objects — split on the OBJECT keyword at line start
+  return content.split(/(?=^OBJECT\s)/m).map(s => s.trim()).filter(Boolean)
+}
+
+function parseCALObject(block: string, filename: string): ParsedObject {
+  const base: ParsedObject = {
+    filename, objectType: 'Unknown', objectId: null,
+    objectName: filename, language: 'CAL', summary: {}, parseError: true,
+  }
+
+  const header = block.match(/^OBJECT\s+(\w+)\s+(\d+)\s+(.+)$/m)
+  if (!header) return base
+
+  const objectType = header[1]   // e.g. Table, Codeunit, Page
+  const objectId   = parseInt(header[2])
+  const objectName = header[3].trim()
+  const summary: Record<string, any> = {}
+
+  if (objectType === 'Table') {
+    // Fields: { FieldNo ; [Access] ; Name ; DataType [; Properties...] }
+    const fieldMatches = [...block.matchAll(/^\s*\{\s*(\d+)\s*;[^;]*;\s*([^;]+?)\s*;\s*([^;}\n]+)/gm)]
+    summary.fields = fieldMatches
+      .map(m => ({ id: parseInt(m[1]), name: m[2].trim(), type: m[3].trim().split(';')[0].trim() }))
+      .filter(f => f.id > 0 && f.name)
+
+    // Primary key — first key block
+    const keyMatch = block.match(/^\s*\{[^;]*;\s*([^;}\n]+)/m)
+    if (keyMatch) summary.primaryKey = keyMatch[1].trim()
+  }
+
+  if (objectType === 'Codeunit') {
+    // Procedures: PROCEDURE Name@n(params);
+    const procMatches = [...block.matchAll(/PROCEDURE\s+(\w+)@\d+\(([^)]*)\)/g)]
+    summary.procedures = procMatches.map(m => ({
+      name:   m[1],
+      params: m[2].trim(),
+    }))
+  }
+
+  if (objectType === 'Page') {
+    const srcMatch = block.match(/SourceTable\s*=\s*Table(\d+)/i)
+    if (srcMatch) summary.sourceTable = parseInt(srcMatch[1])
+    const captMatch = block.match(/CaptionML\s*=\s*ENU\s*=\s*([^;}\n,]+)/i)
+    if (captMatch) summary.caption = captMatch[1].trim()
+  }
+
+  if (objectType === 'Report') {
+    // DataItems: { TableNo ; Name }
+    const diMatches = [...block.matchAll(/DataItemTable\s*=\s*Table(\d+)/g)]
+    summary.dataItems = diMatches.map(m => ({ tableId: parseInt(m[1]) }))
+  }
+
+  return { filename, objectType, objectId, objectName, language: 'CAL', summary, parseError: false }
+}
+
+// ── AL parsing ────────────────────────────────────────────────────────────────
+
+// AL object types we understand
+const AL_TYPES = [
+  'tableextension', 'table',
+  'pageextension',  'page',
+  'reportextension','report',
+  'enumextension',  'enum',
+  'codeunit',
+  'xmlport',
+  'query',
+  'interface',
+  'permissionsetextension', 'permissionset',
+  'profile',
+  'controladdin',
+]
+
+function parseALObject(content: string, filename: string): ParsedObject {
+  const base: ParsedObject = {
+    filename, objectType: 'Unknown', objectId: null,
+    objectName: filename, language: 'AL', summary: {}, parseError: true,
+  }
+
+  // Match: <type> <id> "<name>" or <type> <id> Name
+  const headerRe = new RegExp(
+    `^\\s*(${AL_TYPES.join('|')})\\s+(\\d+)\\s+"?([^"\\n{]+)"?`,
+    'im'
+  )
+  const header = content.match(headerRe)
+  if (!header) return base
+
+  const rawType   = header[1].toLowerCase()
+  const objectType = rawType.charAt(0).toUpperCase() + rawType.slice(1)  // e.g. Tableextension → capitalised
+  const objectId   = parseInt(header[2])
+  const objectName = header[3].trim().replace(/"/g, '')
+  const summary: Record<string, any> = {}
+
+  // Extends — table extensions, page extensions, enum extensions
+  const extendsMatch = content.match(/extends\s+"?([^";\n{]+)"?/i)
+  if (extendsMatch) summary.extends = extendsMatch[1].trim().replace(/"/g, '')
+
+  // ── Table / TableExtension ──────────────────────────────────────────────
+  if (rawType === 'table' || rawType === 'tableextension') {
+    // field(id; "Name"; Type) — may span lines
+    const fieldMatches = [...content.matchAll(/field\s*\(\s*(\d+)\s*;\s*"?([^";)\n]+)"?\s*;\s*([^)]+)\)/g)]
+    summary.fields = fieldMatches.map(m => ({
+      id:   parseInt(m[1]),
+      name: m[2].trim(),
+      type: m[3].trim(),
+    }))
+
+    // Primary key
+    const keyMatch = content.match(/key\s*\(\s*\w+\s*;\s*"?([^";\n)]+)"?\s*\)\s*\{[^}]*Clustered\s*=\s*true/i)
+    if (keyMatch) summary.primaryKey = keyMatch[1].trim()
+  }
+
+  // ── Codeunit ────────────────────────────────────────────────────────────
+  if (rawType === 'codeunit') {
+    // procedures and triggers
+    const procMatches = [...content.matchAll(/(?:local\s+)?procedure\s+(\w+)\s*\(([^)]*)\)/gi)]
+    summary.procedures = procMatches.map(m => ({
+      name:   m[1],
+      params: m[2].trim(),
+    }))
+
+    // EventSubscriber attributes — [EventSubscriber(ObjectType::X, X::"Y", 'EventName', ...)]
+    const subMatches = [...content.matchAll(
+      /\[EventSubscriber\s*\(\s*ObjectType::(\w+)\s*,\s*\w+::"?([^",:)\n]+)"?\s*,\s*'([^']+)'/g
+    )]
+    if (subMatches.length > 0) {
+      summary.eventSubscribers = subMatches.map(m => ({
+        objectType: m[1],
+        object:     m[2].trim(),
+        event:      m[3],
+      }))
+    }
+
+    // IntegrationEvent / BusinessEvent publishers
+    const pubMatches = [...content.matchAll(/\[(?:Integration|Business)Event[^\]]*\]\s*(?:local\s+)?procedure\s+(\w+)/gi)]
+    if (pubMatches.length > 0) {
+      summary.eventPublishers = pubMatches.map(m => m[1])
+    }
+  }
+
+  // ── Page / PageExtension ────────────────────────────────────────────────
+  if (rawType === 'page' || rawType === 'pageextension') {
+    const srcMatch = content.match(/SourceTable\s*=\s*"?([^";\n]+)"?/i)
+    if (srcMatch) summary.sourceTable = srcMatch[1].trim().replace(/"/g, '')
+
+    // Fields added/modified
+    const fieldMatches = [...content.matchAll(/field\s*\(\s*"?([^";)\n]+)"?\s*;\s*(?:Rec\.)?"?([^";\n)]+)"?\s*\)/g)]
+    if (fieldMatches.length > 0) {
+      summary.fieldsAdded = Array.from(new Set(fieldMatches.map(m => m[1].trim().replace(/"/g, ''))))
+    }
+  }
+
+  // ── Enum / EnumExtension ────────────────────────────────────────────────
+  if (rawType === 'enum' || rawType === 'enumextension') {
+    const valueMatches = [...content.matchAll(/value\s*\(\s*(\d+)\s*;\s*"?([^";\n)]+)"?\s*\)/gi)]
+    summary.values = valueMatches.map(m => ({
+      id:   parseInt(m[1]),
+      name: m[2].trim(),
+    }))
+  }
+
+  // ── Report / ReportExtension ────────────────────────────────────────────
+  if (rawType === 'report' || rawType === 'reportextension') {
+    const diMatches = [...content.matchAll(/dataitem\s*\(\s*"?([^";\n)]+)"?\s*;\s*"?([^";\n)]+)"?\s*\)/gi)]
+    summary.dataItems = diMatches.map(m => ({
+      name:  m[1].trim(),
+      table: m[2].trim(),
+    }))
+  }
+
+  return { filename, objectType, objectId, objectName, language: 'AL', summary, parseError: false }
+}
+
+// ── Public entry point ────────────────────────────────────────────────────────
+
+/**
+ * Parse a BC/NAV object file (C/AL .txt or AL .al).
+ * Returns one or more ParsedObject records (C/AL files may contain many objects).
+ */
+export function parseObjectFile(content: string, filename: string): ParsedObject[] {
+  try {
+    const lang = detectLanguage(content)
+
+    if (lang === 'CAL') {
+      const blocks = splitCALObjects(content)
+      if (blocks.length === 0) {
+        return [{ filename, objectType: 'Unknown', objectId: null, objectName: filename,
+                  language: 'CAL', summary: {}, parseError: true }]
+      }
+      return blocks.map(b => parseCALObject(b, filename))
+    }
+
+    // AL — one object per file by convention; parse as single
+    return [parseALObject(content, filename)]
+
+  } catch {
+    return [{ filename, objectType: 'Unknown', objectId: null, objectName: filename,
+              language: 'AL', summary: {}, parseError: true }]
+  }
+}
+
+/**
+ * Build a compact AI context string from an array of stored object summaries.
+ * This is what gets injected into the ai-spec prompt.
+ */
+export function buildObjectContextSection(objects: Array<{
+  objectType: string
+  objectId:   number | null
+  objectName: string
+  language:   string
+  summary:    any
+}>): string {
+  if (objects.length === 0) return ''
+
+  const lines = [
+    '\n--- Existing deployed customisations for this tenant ---',
+    'The following custom objects are already live in this BC instance.',
+    'Field IDs, object numbers, and event subscribers listed here are already in use.',
+    'Your spec MUST NOT conflict with these — choose field IDs and object numbers that do not clash.\n',
+  ]
+
+  for (const obj of objects) {
+    const s = obj.summary ?? {}
+    lines.push(`${obj.objectType} ${obj.objectId ?? '(no ID)'} "${obj.objectName}" [${obj.language}]`)
+
+    if (s.extends)              lines.push(`  Extends: ${s.extends}`)
+    if (s.sourceTable)          lines.push(`  Source table: ${s.sourceTable}`)
+    if (s.primaryKey)           lines.push(`  Primary key: ${s.primaryKey}`)
+
+    if (s.fields?.length)       lines.push(`  Fields: ${s.fields.map((f: any) => `#${f.id} ${f.name} (${f.type})`).join(', ')}`)
+    if (s.fieldsAdded?.length)  lines.push(`  Fields added: ${s.fieldsAdded.join(', ')}`)
+    if (s.values?.length)       lines.push(`  Values: ${s.values.map((v: any) => v.name).join(', ')}`)
+    if (s.dataItems?.length)    lines.push(`  Data items: ${s.dataItems.map((d: any) => d.name ?? d.tableId).join(', ')}`)
+
+    if (s.procedures?.length)   lines.push(`  Procedures: ${s.procedures.map((p: any) => p.name).join(', ')}`)
+    if (s.eventPublishers?.length) lines.push(`  Publishes events: ${s.eventPublishers.join(', ')}`)
+    if (s.eventSubscribers?.length) {
+      const subs = s.eventSubscribers.map((e: any) =>
+        typeof e === 'string' ? e : `${e.object}.${e.event}`
+      ).join(', ')
+      lines.push(`  Subscribes to: ${subs}`)
+    }
+
+    lines.push('')
+  }
+
+  return lines.join('\n')
+}

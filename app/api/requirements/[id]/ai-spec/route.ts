@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/db'
 import OpenAI from 'openai'
+import { buildObjectContextSection } from '@/lib/bc-object-parser'
 
 export const dynamic   = 'force-dynamic'
 export const maxDuration = 60
@@ -189,6 +190,17 @@ export async function POST(
 
   const bcVersion = resolveBcVersion(req_data.tenant, signupBcVersion)
 
+  // ── Tenant deployed objects (all requirements, not just this one) ─────────
+  let tenantObjectsSection = ''
+  try {
+    const tenantObjects = await (prisma as any).tenantObjectFile.findMany({
+      where:   { tenantId: req_data.tenantId, parseError: false },
+      select:  { objectType: true, objectId: true, objectName: true, language: true, summary: true },
+      orderBy: { uploadedAt: 'asc' },
+    })
+    tenantObjectsSection = buildObjectContextSection(tenantObjects)
+  } catch { /* non-fatal — spec generation continues without object context */ }
+
   // ── Parse request body ────────────────────────────────────────────────────
   let bodyQA: Array<{q: string; a: string}> | null = null
   let customerRefinements = ''
@@ -285,6 +297,7 @@ export async function POST(
     '',
     'Original customer description:',
     req_data.description,
+    tenantObjectsSection,
     aiQASection,
     adminQASection,
     changesSection,

@@ -51,7 +51,7 @@ function parseCALObject(block: string, filename: string): ParsedObject {
 
   if (objectType === 'Table') {
     // Fields: { FieldNo ; [Access] ; Name ; DataType [; Properties...] }
-    const fieldMatches = Array.from(block.matchAll(/^\s*\{\s*(\d+)\s*;[^;]*;\s*([^;]+?)\s*;\s*([^;}\n]+)/gm)]
+    const fieldMatches = Array.from(block.matchAll(/^\s*\{\s*(\d+)\s*;[^;]*;\s*([^;]+?)\s*;\s*([^;}\n]+)/gm))
     summary.fields = fieldMatches
       .map(m => ({ id: parseInt(m[1]), name: m[2].trim(), type: m[3].trim().split(';')[0].trim() }))
       .filter(f => f.id > 0 && f.name)
@@ -63,7 +63,7 @@ function parseCALObject(block: string, filename: string): ParsedObject {
 
   if (objectType === 'Codeunit') {
     // Procedures: PROCEDURE Name@n(params);
-    const procMatches = Array.from(block.matchAll(/PROCEDURE\s+(\w+)@\d+\(([^)]*)\)/g)]
+    const procMatches = Array.from(block.matchAll(/PROCEDURE\s+(\w+)@\d+\(([^)]*)\)/g))
     summary.procedures = procMatches.map(m => ({
       name:   m[1],
       params: m[2].trim(),
@@ -79,7 +79,7 @@ function parseCALObject(block: string, filename: string): ParsedObject {
 
   if (objectType === 'Report') {
     // DataItems: { TableNo ; Name }
-    const diMatches = Array.from(block.matchAll(/DataItemTable\s*=\s*Table(\d+)/g)]
+    const diMatches = Array.from(block.matchAll(/DataItemTable\s*=\s*Table(\d+)/g))
     summary.dataItems = diMatches.map(m => ({ tableId: parseInt(m[1]) }))
   }
 
@@ -130,7 +130,7 @@ function parseALObject(content: string, filename: string): ParsedObject {
   // ── Table / TableExtension ──────────────────────────────────────────────
   if (rawType === 'table' || rawType === 'tableextension') {
     // field(id; "Name"; Type) — may span lines
-    const fieldMatches = Array.from(content.matchAll(/field\s*\(\s*(\d+)\s*;\s*"?([^";)\n]+)"?\s*;\s*([^)]+)\)/g)]
+    const fieldMatches = Array.from(content.matchAll(/field\s*\(\s*(\d+)\s*;\s*"?([^";)\n]+)"?\s*;\s*([^)]+)\)/g))
     summary.fields = fieldMatches.map(m => ({
       id:   parseInt(m[1]),
       name: m[2].trim(),
@@ -145,7 +145,7 @@ function parseALObject(content: string, filename: string): ParsedObject {
   // ── Codeunit ────────────────────────────────────────────────────────────
   if (rawType === 'codeunit') {
     // procedures and triggers
-    const procMatches = Array.from(content.matchAll(/(?:local\s+)?procedure\s+(\w+)\s*\(([^)]*)\)/gi)]
+    const procMatches = Array.from(content.matchAll(/(?:local\s+)?procedure\s+(\w+)\s*\(([^)]*)\)/gi))
     summary.procedures = procMatches.map(m => ({
       name:   m[1],
       params: m[2].trim(),
@@ -164,7 +164,7 @@ function parseALObject(content: string, filename: string): ParsedObject {
     }
 
     // IntegrationEvent / BusinessEvent publishers
-    const pubMatches = Array.from(content.matchAll(/\[(?:Integration|Business)Event[^\]]*\]\s*(?:local\s+)?procedure\s+(\w+)/gi)]
+    const pubMatches = Array.from(content.matchAll(/\[(?:Integration|Business)Event[^\]]*\]\s*(?:local\s+)?procedure\s+(\w+)/gi))
     if (pubMatches.length > 0) {
       summary.eventPublishers = pubMatches.map(m => m[1])
     }
@@ -176,7 +176,7 @@ function parseALObject(content: string, filename: string): ParsedObject {
     if (srcMatch) summary.sourceTable = srcMatch[1].trim().replace(/"/g, '')
 
     // Fields added/modified
-    const fieldMatches = Array.from(content.matchAll(/field\s*\(\s*"?([^";)\n]+)"?\s*;\s*(?:Rec\.)?"?([^";\n)]+)"?\s*\)/g)]
+    const fieldMatches = Array.from(content.matchAll(/field\s*\(\s*"?([^";)\n]+)"?\s*;\s*(?:Rec\.)?"?([^";\n)]+)"?\s*\)/g))
     if (fieldMatches.length > 0) {
       summary.fieldsAdded = Array.from(new Set(fieldMatches.map(m => m[1].trim().replace(/"/g, ''))))
     }
@@ -184,7 +184,7 @@ function parseALObject(content: string, filename: string): ParsedObject {
 
   // ── Enum / EnumExtension ────────────────────────────────────────────────
   if (rawType === 'enum' || rawType === 'enumextension') {
-    const valueMatches = Array.from(content.matchAll(/value\s*\(\s*(\d+)\s*;\s*"?([^";\n)]+)"?\s*\)/gi)]
+    const valueMatches = Array.from(content.matchAll(/value\s*\(\s*(\d+)\s*;\s*"?([^";\n)]+)"?\s*\)/gi))
     summary.values = valueMatches.map(m => ({
       id:   parseInt(m[1]),
       name: m[2].trim(),
@@ -193,7 +193,7 @@ function parseALObject(content: string, filename: string): ParsedObject {
 
   // ── Report / ReportExtension ────────────────────────────────────────────
   if (rawType === 'report' || rawType === 'reportextension') {
-    const diMatches = Array.from(content.matchAll(/dataitem\s*\(\s*"?([^";\n))+)"?\s*;\s*"?([^";\n)]+)"?\s*\)/gi)]
+    const diMatches = Array.from(content.matchAll(/dataitem\s*\(\s*"?([^";\n))+)"?\s*;\s*"?([^";\n)]+)"?\s*\)/gi))
     summary.dataItems = diMatches.map(m => ({
       name:  m[1].trim(),
       table: m[2].trim(),

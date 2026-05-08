@@ -154,7 +154,7 @@ function parseALObject(content: string, filename: string): ParsedObject {
     // EventSubscriber attributes — [EventSubscriber(ObjectType::X, X::"Y", 'EventName', ...)]
     const subMatches = Array.from(content.matchAll(
       /\[EventSubscriber\s*\(\s*ObjectType::(\w+)\s*,\s*\w+::"?([^",:)\n]+)"?\s*,\s*'([^']+)'/g
-    )]
+    ))
     if (subMatches.length > 0) {
       summary.eventSubscribers = subMatches.map(m => ({
         objectType: m[1],

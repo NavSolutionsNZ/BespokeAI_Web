@@ -449,8 +449,8 @@ function AdminPageInner() {
                 </FormCard>
               )}
 
-              <div style={{ background: 'var(--white)', border: '1px solid var(--fog)', borderRadius: 12, overflow: 'hidden' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+              <div style={{ background: 'var(--white)', border: '1px solid var(--fog)', borderRadius: 12, overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 700 }}>
                   <thead>
                     <tr style={{ borderBottom: '1px solid var(--fog)' }}>
                       {['Tenant', 'Subdomain', 'BC Instance', 'Users', 'Queries', 'Status', ''].map(h => (
@@ -525,8 +525,8 @@ function AdminPageInner() {
                 </FormCard>
               )}
 
-              <div style={{ background: 'var(--white)', border: '1px solid var(--fog)', borderRadius: 12, overflow: 'hidden' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+              <div style={{ background: 'var(--white)', border: '1px solid var(--fog)', borderRadius: 12, overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 700 }}>
                   <thead>
                     <tr style={{ borderBottom: '1px solid var(--fog)' }}>
                       {['User', 'Email', 'Tenant', 'Role', 'Queries', 'Joined', 'Status', ''].map(h => (

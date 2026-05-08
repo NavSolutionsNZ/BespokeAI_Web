@@ -150,8 +150,8 @@ function DashboardInner() {
   }, [user?.role, router])
 
   useEffect(() => {
-    if (user && user.onboardingDone === false) router.replace('/onboarding')
-  }, [user?.onboardingDone, router])
+    if (user && user.role !== 'superadmin' && user.onboardingDone === false) router.replace('/onboarding')
+  }, [user?.onboardingDone, user?.role, router])
 
   // Persist active nav in URL ?view=xxx so refresh lands on the same tab
   const viewParam = (searchParams.get('view') as NavItem | null) ?? 'assistant'

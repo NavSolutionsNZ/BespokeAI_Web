@@ -30,7 +30,7 @@ const CONFIG = {
 
 ---
 
-## What Is Tested (32 assertions)
+## What Is Tested (42 assertions)
 
 | # | Test | What it checks |
 |---|------|---------------|
@@ -67,10 +67,25 @@ const CONFIG = {
 | 2 | Gen 2 complete | Gen 2 has standard spec fields (userStory, acceptanceCriteria, etc.) |
 | 2 | Gen 2 differs | Gen 2 output differs from Gen 1 (was re-generated, not cached) |
 | Cleanup | Test objects removed | All objects created during test run are deleted |
+| F1 | Feasibility endpoint returns 200 | `POST /api/requirements/[id]/feasibility` reachable |
+| F2 | Response contains requirement | `d.requirement` object present in response |
+| F3 | feasibility is valid enum | Value is `cfo_assistant`, `development`, or `infeasible` |
+| F4 | feasibilityNotes non-empty | String with >10 chars returned |
+| F5 | feasibilityCheckedAt set | Timestamp present in response |
+| F6 | Development has cost range | `feasibilityCostRange` is `2-5k`, `5-15k`, or `15k+` when `feasibility=development` |
+| F7 | Non-development cost range null | `feasibilityCostRange` is null for `cfo_assistant` and `infeasible` |
+| F8 | Result persisted | Requirement list reflects updated feasibility fields |
+| F9 | Re-run is stable | Second call returns 200 and same classification |
+| F10 | Access control | No-session request returns 401 |
 
 ---
 
 ## Important Behavioural Notes
+
+**Feasibility tests use `secondRequirementId`** (or `fullyPaidRequirementId` as fallback). They call `POST /api/requirements/[id]/feasibility` which makes a GPT-4o call — expect ~3–5 seconds per call. Two calls are made per run (F1 + F9 re-run). The classification result is logged to the console so you can verify it makes sense for the requirement description.
+
+**Classification type tests (cfo_assistant vs development)** are validated structurally (cost range present/absent) but the specific type is not asserted — it depends on the requirement description and may legitimately vary.
+
 
 **Route returns the full list after every write.** `POST /api/requirements/[id]/objects` returns all objects for the requirement, not just the newly uploaded ones. Always find uploaded records by `filename`, not by index — pre-existing objects will be at lower indices.
 

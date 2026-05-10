@@ -419,7 +419,7 @@ footer{padding:2.5rem 3rem;border-top:1px solid rgba(244,239,228,.06);display:fl
 
 /* CONNECTED INTELLIGENCE */
 .ci-grid{display:grid;grid-template-columns:1.1fr 1fr;gap:4rem;align-items:start;margin-top:3rem}
-.ci-items{display:flex;flex-direction:column;gap:1px;background:rgba(244,239,228,.07);border-radius:12px;overflow:hidden}
+.ci-items{display:flex;flex-direction:column;gap:1px;background:rgba(244,239,228,.07);border-radius:12px;overflow:hidden;align-self:start}
 .ci-item{background:var(--ink);padding:1.25rem 1.5rem;display:flex;gap:1rem;align-items:flex-start}
 .ci-icon{font-size:18px;flex-shrink:0;margin-top:2px}
 .ci-label{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--jade);margin-bottom:.35rem}
@@ -449,17 +449,15 @@ footer{padding:2.5rem 3rem;border-top:1px solid rgba(244,239,228,.06);display:fl
 .kbc-list li::before{content:'→';color:var(--amber);flex-shrink:0;margin-top:1px}
 
 /* MIGRATION ANALYSER CALLOUT */
-.mig-callout{margin-top:2.5rem;background:rgba(244,239,228,.03);border:1px solid rgba(244,239,228,.1);border-radius:12px;padding:2rem 2.5rem;display:grid;grid-template-columns:1.6fr 1fr;gap:2.5rem;align-items:center}
+.mig-callout{margin-top:2.5rem;background:var(--ink);border:1px solid rgba(244,239,228,.1);border-radius:12px;padding:2rem 2.5rem;display:grid;grid-template-columns:1.6fr 1fr;gap:2.5rem;align-items:center}
 .mig-label{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--amber);margin-bottom:.6rem}
 .mig-title{font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:300;color:var(--cream);margin-bottom:.75rem}
 .mig-desc{font-size:12px;color:rgba(244,239,228,.65);line-height:1.7}
 .mig-phases{display:flex;flex-direction:column;gap:.5rem}
-.mig-phase{background:rgba(244,239,228,.04);border:1px solid rgba(244,239,228,.07);border-radius:8px;padding:.85rem 1.1rem}
+.mig-phase{background:rgba(244,239,228,.05);border:1px solid rgba(244,239,228,.1);border-radius:8px;padding:.85rem 1.1rem}
 .mig-phase-label{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:rgba(244,239,228,.45);margin-bottom:.3rem}
 .mig-phase-text{font-size:12px;color:rgba(244,239,228,.75)}
 
-/* CI alignment fix */
-.ci-items{align-self:start}
 
 @media(max-width:900px){
   .kbc-wrap{grid-template-columns:1fr;padding:2rem}
@@ -582,6 +580,7 @@ footer{padding:2.5rem 3rem;border-top:1px solid rgba(244,239,228,.06);display:fl
     <div class="cr"><div class="cf">Fixed-price development quotes</div><div class="cb">&check; Always, quoted from the spec</div><div class="cc">&cross; Estimates only, change requests common</div></div>
     <div class="cr"><div class="cf">Pipeline visibility into your project</div><div class="cb">&check; Real-time in your portal</div><div class="cc">&cross; Email updates at best</div></div>
     <div class="cr"><div class="cf">Take your spec to any developer</div><div class="cb">&check; Fully open, your choice</div><div class="cc">&cross; Locked to one provider</div></div>
+    <div class="cr"><div class="cf">Identifies when development isn&rsquo;t needed</div><div class="cb">&check; Flagged during feasibility</div><div class="cc">&cross; Scoped as billable work regardless</div></div>
   </div>
 </div>
 </div>
@@ -606,7 +605,7 @@ footer{padding:2.5rem 3rem;border-top:1px solid rgba(244,239,228,.06);display:fl
       <div class="flow-num">02</div>
       <div class="flow-icon">&#x1F4CB;</div>
       <div class="flow-title">Scope</div>
-      <p class="flow-desc">Describe a customisation idea and BespoxAI assesses feasibility, flags technical constraints, and gives you a cost and time indication before you involve anyone. Then generates a full professional specification, ready for any developer to quote against.</p>
+      <p class="flow-desc">Describe a customisation idea and BespoxAI assesses feasibility, flags technical constraints, and gives you a cost and time indication before you involve anyone. If the requirement is a financial report or data query, BespoxAI will flag whether the CFO Assistant can answer it directly — saving you the cost of a development engagement entirely. If it needs building, a full professional specification is generated and ready for any developer to quote against.</p>
       <div class="flow-get">Feasibility first &middot; Cost indication &middot; Professional spec</div>
     </div>
     <div class="flow-arrow">&rarr;</div>
@@ -633,6 +632,7 @@ footer{padding:2.5rem 3rem;border-top:1px solid rgba(244,239,228,.06);display:fl
         <li>Reshape the scope early if the first pass is over budget</li>
         <li>Arrive at any developer conversation already informed, with a professional spec in hand</li>
         <li>Typical customisations from $2&ndash;5k NZD, deposits from $400</li>
+        <li>If your idea is a financial report or data query, BespoxAI may be able to answer it right now without any development cost</li>
       </ul>
     </div>
   </div>
@@ -724,7 +724,7 @@ footer{padding:2.5rem 3rem;border-top:1px solid rgba(244,239,228,.06);display:fl
       <p style="font-size:14px;color:rgba(244,239,228,.72);line-height:1.85;margin-bottom:2rem">Most BC development projects start with a partner who knows nothing about your environment. They discover your existing objects mid-build, find conflicts they didn&rsquo;t expect, and issue change requests. BespoxAI starts every engagement from a position of knowledge. Your profile means feasibility checks are accurate, specs are built around your actual codebase, and quotes reflect reality from day one.</p>
       <p style="font-size:14px;color:rgba(244,239,228,.72);line-height:1.85">The more requirements you scope and the more work you track, the more history BespoxAI has to draw on. Patterns emerge. Costs come down. Timelines tighten. Over time, BespoxAI becomes an institutional record of your BC environment that no partner relationship can replicate.</p>
     </div>
-    <div class="ci-items">
+    <div class="ci-items" style="align-self:start">
       <div class="ci-item">
         <div class="ci-icon">&#x1F4BB;</div>
         <div>

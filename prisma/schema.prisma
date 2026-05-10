@@ -157,6 +157,12 @@ model Requirement {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
+  // Feasibility check fields — populated by POST /api/requirements/[id]/feasibility
+  feasibility          String?            // 'cfo_assistant' | 'development' | 'infeasible'
+  feasibilityNotes     String?   @db.Text // Plain-English explanation from BespoxAI
+  feasibilityCostRange String?            // 'NZD 2-5k' | '5-15k' | '15k+' — development only
+  feasibilityCheckedAt DateTime?          // Timestamp of most recent check
+
   tenant  Tenant             @relation(fields: [tenantId], references: [id])
   user    User               @relation(fields: [userId], references: [id])
   objects TenantObjectFile[]

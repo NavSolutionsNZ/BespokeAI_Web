@@ -9,6 +9,8 @@ export interface Requirement {
   depositAmount: string | null; depositPaidAt: string | null; balancePaidAt: string | null
   adminQuestions: string | null; customerAnswers: string | null; adminQALog: string | null
   quoteRejectedAt: string | null; quoteRejectionReason: string | null
+  feasibility: string | null; feasibilityNotes: string | null
+  feasibilityCostRange: string | null; feasibilityCheckedAt: string | null
   createdAt: string; updatedAt: string
   user: { name: string | null; email: string }
   tenant: { name: string }
@@ -123,6 +125,9 @@ export default function RequirementsBuilder({ userRole, tenantId, bcConnected=fa
   // Resubmit after quote rejection — editable fields seeded from requirement
   const [resubmitForm, setRF] = useState({title:'',description:'',bcArea:'Finance',priority:'important',extraContext:''})
 
+  const [feasLoadingId, setFeasLoadingId] = useState<string|null>(null)
+  const [feasErr, setFeasErr]             = useState('')
+
   async function load() {
     setLoading(true); setError('')
     try {
@@ -150,8 +155,26 @@ export default function RequirementsBuilder({ userRole, tenantId, bcConnected=fa
     setShowQAP(false); setQAAnswers({})
     setShowRefine(false); setRefinementText(''); setEditedUS(''); setEditedCrit([])
     setAAD(''); setShowSB(false); setShowQF(false)
-    setSpecErr(''); setShowRQ(false); setRejectReason('')
+    setSpecErr(''); setFeasErr(''); setShowRQ(false); setRejectReason('')
     setRF({title:req.title,description:req.description,bcArea:req.bcArea,priority:req.priority,extraContext:''})
+  }
+
+  function formatCostRange(r: string | null): string {
+    if (!r) return ''
+    const map: Record<string,string> = { '2-5k': '$2–5k NZD', '5-15k': '$5–15k NZD', '15k+': '$15k+ NZD' }
+    return map[r] ?? r
+  }
+
+  async function runFeasibility(req: Requirement) {
+    setFeasLoadingId(req.id); setFeasErr('')
+    try {
+      const res = await fetch(`/api/requirements/${req.id}/feasibility`, { method: 'POST' })
+      const d   = await res.json()
+      if (!res.ok) throw new Error(d.error)
+      setReqs(prev => prev.map(r => r.id === req.id ? d.requirement : r))
+      setSelected(d.requirement)
+    } catch (e: any) { setFeasErr(e.message) }
+    finally { setFeasLoadingId(null) }
   }
 
   async function createReq() {
@@ -165,8 +188,8 @@ export default function RequirementsBuilder({ userRole, tenantId, bcConnected=fa
       selectReq(d.requirement)
       setShowCreate(false)
       setForm({title:'',description:'',bcArea:'Finance',priority:'important'})
-      // Auto-generate spec immediately — no button click needed
-      generateSpec(d.requirement)
+      // Run feasibility check immediately — determines if development is actually needed
+      runFeasibility(d.requirement)
     } catch(e:any) { setFE(e.message) }
     finally { setSaving(false) }
   }
@@ -340,6 +363,8 @@ export default function RequirementsBuilder({ userRole, tenantId, bcConnected=fa
                   <span style={{fontFamily:'var(--font-mono)',fontSize:8,letterSpacing:'0.07em',textTransform:'uppercase',color:sc.text,background:sc.bg,border:`1px solid ${sc.border}`,padding:'2px 7px',borderRadius:6}}>{statusLabel(req.status)}</span>
                   <span style={{fontFamily:'var(--font-mono)',fontSize:9,color:'var(--slate)'}}>{req.bcArea}</span>
                   {isSuperadmin&&<span style={{fontFamily:'var(--font-mono)',fontSize:9,color:'var(--jade)',marginLeft:'auto'}}>{req.tenant.name}</span>}
+                  {req.feasibility==='cfo_assistant'&&!req.aiSpec&&<span style={{fontFamily:'var(--font-mono)',fontSize:8,color:'#C8952A',background:'rgba(200,149,42,0.08)',padding:'1px 5px',borderRadius:4}}>💡 no dev needed</span>}
+                  {req.feasibility==='infeasible'&&<span style={{fontFamily:'var(--font-mono)',fontSize:8,color:'#A32D2D',background:'rgba(163,45,45,0.07)',padding:'1px 5px',borderRadius:4}}>⚠ constrained</span>}
                   {spec&&<span style={{fontFamily:'var(--font-mono)',fontSize:8,color:'var(--jade)'}}>✦ spec</span>}
                   {(spec?.questions?.length??0)>0&&<span style={{fontFamily:'var(--font-mono)',fontSize:8,color:'#C8952A'}}>? {spec!.questions.length}q</span>}
                   {req.quote&&<span style={{fontFamily:'var(--font-mono)',fontSize:9,color:'var(--forest)',fontWeight:600}}>${parseFloat(req.quote).toLocaleString()}</span>}
@@ -367,7 +392,7 @@ export default function RequirementsBuilder({ userRole, tenantId, bcConnected=fa
             <div style={crd}>
               <label style={lbl}>Describe what you need <span style={{color:'#A32D2D'}}>*</span></label>
               <p style={{fontFamily:'var(--font-body)',fontSize:11,color:'var(--slate)',marginBottom:10,lineHeight:1.55}}>
-                Write in plain English — the business problem, who is involved, current workarounds, and what success looks like. The AI will generate a spec and ask clarifying questions. You can refine before submitting.
+                Write in plain English — the business problem, who is involved, current workarounds, and what success looks like. BespoxAI will first check feasibility and whether development is actually needed, then generate a full specification if required.
               </p>
               <textarea placeholder="e.g. Right now purchase orders go straight to the vendor with no approval. We need two levels: line manager for orders under $5k, CFO for anything above. Approvers need an email with a link to approve or reject directly in BC..." value={form.description} onChange={e=>setForm(f=>({...f,description:e.target.value}))} rows={7} style={{...iSt,resize:'vertical',lineHeight:1.65}} onFocus={fo} onBlur={bl}/>
             </div>
@@ -383,7 +408,7 @@ export default function RequirementsBuilder({ userRole, tenantId, bcConnected=fa
             </div>
             {formErr&&<p style={{fontFamily:'var(--font-body)',fontSize:12,color:'#A32D2D'}}>{formErr}</p>}
             <div style={{display:'flex',gap:10}}>
-              <button onClick={createReq} disabled={saving} style={{...pBTN,opacity:saving?0.7:1}}>{saving?'Saving…':'Save & Generate Spec →'}</button>
+              <button onClick={createReq} disabled={saving} style={{...pBTN,opacity:saving?0.7:1}}>{saving?'Saving…':'Save & Check Feasibility →'}</button>
               <button onClick={()=>setShowCreate(false)} style={sBTN}>Cancel</button>
             </div>
           </>}
@@ -514,6 +539,74 @@ export default function RequirementsBuilder({ userRole, tenantId, bcConnected=fa
                   </div>
                   <p style={{fontFamily:'var(--font-body)',fontSize:13,color:'var(--ink)',lineHeight:1.7,fontStyle:'italic'}}>"{req.quoteRejectionReason}"</p>
                   {req.quoteRejectedAt&&<p style={{fontFamily:'var(--font-mono)',fontSize:9,color:'var(--slate)',marginTop:6}}>Rejected {new Date(req.quoteRejectedAt).toLocaleDateString('en-NZ',{dateStyle:'medium'})}</p>}
+                </div>
+              )}
+
+
+              {/* Feasibility check result */}
+              {(feasLoadingId===req.id||req.feasibility)&&(
+                <div style={{background:'var(--white)',border:'1px solid var(--fog)',borderRadius:10,padding:'18px 20px'}}>
+                  <div style={{fontFamily:'var(--font-mono)',fontSize:9,letterSpacing:'0.14em',textTransform:'uppercase',color:'var(--slate)',marginBottom:12,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                    <span>BespoxAI Feasibility Check</span>
+                    {req.feasibilityCheckedAt&&<span style={{color:'rgba(59,82,73,0.5)',fontSize:8}}>{new Date(req.feasibilityCheckedAt).toLocaleDateString('en-NZ',{dateStyle:'medium'})}</span>}
+                  </div>
+
+                  {feasLoadingId===req.id&&(
+                    <div style={{display:'flex',alignItems:'center',gap:10}}>
+                      <div style={{width:14,height:14,borderRadius:'50%',border:'2px solid var(--forest)',borderTopColor:'transparent',animation:'spin 0.8s linear infinite',flexShrink:0}}/>
+                      <span style={{fontFamily:'var(--font-body)',fontSize:13,color:'var(--slate)'}}>BespoxAI is checking feasibility…</span>
+                    </div>
+                  )}
+
+                  {feasLoadingId!==req.id&&req.feasibility==='cfo_assistant'&&(
+                    <div>
+                      <div style={{display:'flex',gap:10,alignItems:'flex-start',marginBottom:14}}>
+                        <span style={{fontSize:20,flexShrink:0}}>💡</span>
+                        <div>
+                          <div style={{fontFamily:'var(--font-mono)',fontSize:9,letterSpacing:'0.12em',textTransform:'uppercase',color:'#C8952A',marginBottom:6}}>This may not need development</div>
+                          <p style={{fontFamily:'var(--font-body)',fontSize:13,color:'var(--ink)',lineHeight:1.7,margin:0}}>{req.feasibilityNotes}</p>
+                        </div>
+                      </div>
+                      <div style={{paddingTop:12,borderTop:'1px solid var(--fog)',display:'flex',gap:8,flexWrap:'wrap'}}>
+                        <button onClick={()=>window.location.href='/dashboard?view=chat'} style={pBTN}>Try CFO Assistant →</button>
+                        <button onClick={()=>generateSpec(req)} disabled={genSpec} style={{...sBTN,opacity:genSpec?0.7:1}}>{genSpec?'Generating…':'Scope as development anyway'}</button>
+                      </div>
+                    </div>
+                  )}
+
+                  {feasLoadingId!==req.id&&req.feasibility==='development'&&(
+                    <div>
+                      <div style={{display:'flex',gap:10,alignItems:'flex-start',marginBottom:spec?0:14}}>
+                        <span style={{fontSize:20,flexShrink:0}}>✅</span>
+                        <div style={{flex:1}}>
+                          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6,flexWrap:'wrap',gap:6}}>
+                            <div style={{fontFamily:'var(--font-mono)',fontSize:9,letterSpacing:'0.12em',textTransform:'uppercase',color:'var(--forest)'}}>Development required — feasible</div>
+                            {req.feasibilityCostRange&&<span style={{fontFamily:'var(--font-mono)',fontSize:9,color:'var(--forest)',background:'rgba(10,92,70,0.08)',border:'1px solid rgba(10,92,70,0.2)',borderRadius:20,padding:'2px 10px'}}>{formatCostRange(req.feasibilityCostRange)}</span>}
+                          </div>
+                          <p style={{fontFamily:'var(--font-body)',fontSize:13,color:'var(--ink)',lineHeight:1.7,margin:0}}>{req.feasibilityNotes}</p>
+                        </div>
+                      </div>
+                      {!spec&&(
+                        <div style={{paddingTop:12,borderTop:'1px solid var(--fog)'}}>
+                          <button onClick={()=>generateSpec(req)} disabled={genSpec} style={{...pBTN,opacity:genSpec?0.7:1}}>{genSpec?'Generating spec…':'Generate Full Specification →'}</button>
+                          {specErr&&<p style={{fontFamily:'var(--font-body)',fontSize:12,color:'#A32D2D',marginTop:8}}>{specErr}</p>}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {feasLoadingId!==req.id&&req.feasibility==='infeasible'&&(
+                    <div style={{display:'flex',gap:10,alignItems:'flex-start'}}>
+                      <span style={{fontSize:20,flexShrink:0}}>⚠️</span>
+                      <div>
+                        <div style={{fontFamily:'var(--font-mono)',fontSize:9,letterSpacing:'0.12em',textTransform:'uppercase',color:'#A32D2D',marginBottom:6}}>Technical constraints identified</div>
+                        <p style={{fontFamily:'var(--font-body)',fontSize:13,color:'var(--ink)',lineHeight:1.7,marginBottom:12}}>{req.feasibilityNotes}</p>
+                        <a href="mailto:hello@bespoxai.com" style={{...sBTN,textDecoration:'none',display:'inline-block'}}>Contact us to discuss →</a>
+                      </div>
+                    </div>
+                  )}
+
+                  {feasErr&&<p style={{fontFamily:'var(--font-body)',fontSize:12,color:'#A32D2D',marginTop:8}}>{feasErr}</p>}
                 </div>
               )}
 

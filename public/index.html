@@ -380,6 +380,48 @@ footer{padding:2.5rem 3rem;border-top:1px solid rgba(244,239,228,.06);display:fl
   .kpi-grid,.qa-grid{grid-template-columns:1fr}
   .cta-title{font-size:44px}
 }
+
+/* HOW IT WORKS — three-act flow */
+.flow-grid{display:grid;grid-template-columns:1fr auto 1fr auto 1fr;gap:0;align-items:start;margin-top:3.5rem}
+.flow-step{background:var(--white);border:1px solid var(--fog);border-radius:14px;padding:2rem}
+.flow-num{font-family:'Cormorant Garamond',serif;font-size:52px;font-weight:300;line-height:1;color:var(--forest);opacity:.3;margin-bottom:.75rem}
+.flow-icon{font-size:28px;margin-bottom:.75rem}
+.flow-title{font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:400;color:var(--ink);margin-bottom:.75rem}
+.flow-desc{font-size:13px;color:var(--slate);line-height:1.75}
+.flow-get{margin-top:1.25rem;padding-top:1.25rem;border-top:1px solid var(--fog);font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--forest)}
+.flow-arrow{display:flex;align-items:center;justify-content:center;padding:0 1rem;padding-top:5.5rem;color:var(--jade);font-size:22px;opacity:.45}
+
+/* PARTNER FLEX */
+.pf-grid{display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;margin-top:3rem}
+.pf-card{border-radius:14px;padding:2rem}
+.pf-card.take{background:rgba(244,239,228,.04);border:1px solid rgba(244,239,228,.1)}
+.pf-card.go{background:rgba(26,146,114,.08);border:1px solid rgba(26,146,114,.22)}
+.pf-badge{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.16em;text-transform:uppercase;padding:4px 12px;border-radius:20px;display:inline-block;margin-bottom:1.25rem}
+.pf-badge.take{background:rgba(244,239,228,.08);color:rgba(244,239,228,.5)}
+.pf-badge.go{background:rgba(26,146,114,.18);color:var(--jade)}
+.pf-title{font-family:'Cormorant Garamond',serif;font-size:24px;font-weight:300;color:var(--cream);margin-bottom:.75rem}
+.pf-desc{font-size:13px;color:rgba(244,239,228,.7);line-height:1.75;margin-bottom:1.5rem}
+.pf-list{list-style:none;display:flex;flex-direction:column;gap:.65rem}
+.pf-list li{font-size:12px;color:rgba(244,239,228,.65);display:flex;gap:8px;align-items:flex-start;line-height:1.55}
+.pf-list li::before{content:'→';color:var(--jade);flex-shrink:0}
+.pf-list.go li::before{content:'✓'}
+
+/* PIPELINE STAGES */
+.pipe-vis{display:grid;grid-template-columns:repeat(5,1fr);gap:1px;background:rgba(4,14,9,.12);border-radius:12px;overflow:hidden;margin-top:3rem}
+.pipe-stage{background:var(--white);padding:1.5rem 1rem;text-align:center}
+.pipe-stage-num{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.14em;color:rgba(4,14,9,.3);margin-bottom:.5rem}
+.pipe-stage-icon{font-size:20px;margin-bottom:.5rem}
+.pipe-stage-name{font-family:'Cormorant Garamond',serif;font-size:16px;color:var(--ink);margin-bottom:.4rem}
+.pipe-stage-desc{font-size:11px;color:var(--slate);line-height:1.5}
+.pipe-stage.active-stage{background:rgba(10,92,70,.07);border-top:2px solid var(--forest)}
+.pipe-stage.active-stage .pipe-stage-name{color:var(--forest)}
+
+@media(max-width:900px){
+  .flow-grid{grid-template-columns:1fr;gap:1.25rem}
+  .flow-arrow{display:none}
+  .pf-grid{grid-template-columns:1fr}
+  .pipe-vis{grid-template-columns:1fr 1fr}
+}
 </style>
 </head>
 <body>
@@ -393,220 +435,310 @@ footer{padding:2.5rem 3rem;border-top:1px solid rgba(244,239,228,.06);display:fl
     <span style="display:inline-flex;align-items:baseline;gap:0"><span class="nl-text">Bespox</span><span class="nl-ai">AI</span></span>
   </div>
   <ul class="nav-links">
-    <li><a>Products</a></li>
-    <li><a>Why BespoxAI</a></li>
-    <li><a>Demo</a></li>
-    <li><a>Pricing</a></li>
+    <li><a onclick="document.getElementById('sec-how').scrollIntoView({behavior:'smooth'})">How it Works</a></li>
+    <li><a onclick="document.getElementById('sec-partner').scrollIntoView({behavior:'smooth'})">Your Partner</a></li>
+    <li><a onclick="document.getElementById('sec-pricing').scrollIntoView({behavior:'smooth'})">Pricing</a></li>
+    <li><a onclick="document.getElementById('sec-demo').scrollIntoView({behavior:'smooth'})">Demo</a></li>
   </ul>
   <div class="nav-r">
     <button class="btn-ns" onclick="window.location.href='/login'">Sign In</button>
-    <button class="btn-np" onclick="window.location.href='/login'">Free Data Scan →</button>
+    <button class="btn-np" onclick="window.location.href='/login'">Get Started &rarr;</button>
   </div>
 </nav>
 
+<!-- HERO -->
 <section class="hero">
   <div class="hero-bg"><div class="hg1"></div><div class="hg2"></div><div class="hgrid"></div></div>
   <div class="hero-in">
-    <div class="eyebrow"><div class="ey-line"></div><div class="ey-text">AI for Business Central &amp; Navision</div></div>
-    <div class="hero-title">Bespoke AI.<br><em>Built for the ERP</em><br>Microsoft left behind.</div>
+    <div class="eyebrow"><div class="ey-line"></div><div class="ey-text">AI &middot; Customisation &middot; Development &middot; BC &amp; NAV</div></div>
+    <div class="hero-title">Your Business Central.<br><em>One portal.</em><br>Complete control.</div>
     <div class="hero-body">
       <div>
-        <p class="hero-desc">The only AI platform built by developers who understand CAL and AL at their deepest level. Natural language financial intelligence, automated data health scanning, and cash flow forecasting — for every BC and NAV customer, including those Microsoft Copilot cannot reach.</p>
+        <p class="hero-desc">From asking the AI a question about your finances, to scoping a customisation and receiving a fixed-price quote, to tracking development to completion &mdash; BespoxAI manages your entire BC and NAV relationship from one place. Already have a partner? Take the spec to them. Or let us build it.</p>
         <div class="hero-actions">
-          <button class="btn-p" onclick="window.location.href='/login'">Get a Free Data Scan</button>
-          <button class="btn-g">Watch 3-min demo</button>
+          <button class="btn-p" onclick="window.location.href='/login'">Start for Free</button>
+          <button class="btn-g" onclick="document.getElementById('sec-how').scrollIntoView({behavior:'smooth'})">See how it works</button>
         </div>
       </div>
       <div>
         <div class="hero-stats">
           <div class="h-stat"><div class="sv"><span>47</span> hrs</div><div class="sl">Avg monthly hours eliminated</div></div>
-          <div class="h-stat"><div class="sv"><span>0</span></div><div class="sl">AI competitors on NAV</div></div>
-          <div class="h-stat"><div class="sv"><span>4–8</span>×</div><div class="sl">Typical first-year ROI</div></div>
-          <div class="h-stat"><div class="sv"><span>8</span> wks</div><div class="sl">Scan to live platform</div></div>
+          <div class="h-stat"><div class="sv"><span>100</span>%</div><div class="sl">Fixed-price development</div></div>
+          <div class="h-stat"><div class="sv"><span>4&ndash;8</span>&times;</div><div class="sl">Typical first-year ROI</div></div>
+          <div class="h-stat"><div class="sv"><span>All</span></div><div class="sl">BC &amp; NAV versions</div></div>
         </div>
-        <div class="hero-badge"><div class="bdot"></div><div class="badge-text"><strong>Works where Copilot doesn't</strong>NAV 2013–2018 · BC on-prem · ISV Embed · BC SaaS</div></div>
+        <div class="hero-badge"><div class="bdot"></div><div class="badge-text"><strong>Works where Copilot doesn&rsquo;t</strong>NAV 2013&ndash;2018 &middot; BC on-prem &middot; ISV Embed &middot; BC SaaS</div></div>
       </div>
     </div>
   </div>
 </section>
 
+<!-- MARQUEE -->
 <div class="mq-wrap"><div class="mq-track">
-  <span class="mq-item"><span class="mq-dot"></span>Business Central SaaS</span>
-  <span class="mq-item"><span class="mq-dot"></span>Dynamics NAV 2013–2018</span>
-  <span class="mq-item"><span class="mq-dot"></span>BC On-Premises</span>
-  <span class="mq-item"><span class="mq-dot"></span>ISV Embed Customers</span>
-  <span class="mq-item"><span class="mq-dot"></span>CFO Intelligence</span>
+  <span class="mq-item"><span class="mq-dot"></span>CFO AI Assistant</span>
+  <span class="mq-item"><span class="mq-dot"></span>Fixed-Price Development</span>
+  <span class="mq-item"><span class="mq-dot"></span>Requirement Scoping</span>
   <span class="mq-item"><span class="mq-dot"></span>Data Health Scanning</span>
-  <span class="mq-item"><span class="mq-dot"></span>Cash Flow Forecasting</span>
+  <span class="mq-item"><span class="mq-dot"></span>Project Pipeline</span>
   <span class="mq-item"><span class="mq-dot"></span>NAV Migration Analysis</span>
-  <span class="mq-item"><span class="mq-dot"></span>Month-End Close</span>
   <span class="mq-item"><span class="mq-dot"></span>Business Central SaaS</span>
-  <span class="mq-item"><span class="mq-dot"></span>Dynamics NAV 2013–2018</span>
+  <span class="mq-item"><span class="mq-dot"></span>Dynamics NAV 2013&ndash;2018</span>
   <span class="mq-item"><span class="mq-dot"></span>BC On-Premises</span>
-  <span class="mq-item"><span class="mq-dot"></span>ISV Embed Customers</span>
-  <span class="mq-item"><span class="mq-dot"></span>CFO Intelligence</span>
+  <span class="mq-item"><span class="mq-dot"></span>Bring Your Own Partner</span>
+  <span class="mq-item"><span class="mq-dot"></span>CFO AI Assistant</span>
+  <span class="mq-item"><span class="mq-dot"></span>Fixed-Price Development</span>
+  <span class="mq-item"><span class="mq-dot"></span>Requirement Scoping</span>
   <span class="mq-item"><span class="mq-dot"></span>Data Health Scanning</span>
-  <span class="mq-item"><span class="mq-dot"></span>Cash Flow Forecasting</span>
+  <span class="mq-item"><span class="mq-dot"></span>Project Pipeline</span>
   <span class="mq-item"><span class="mq-dot"></span>NAV Migration Analysis</span>
-  <span class="mq-item"><span class="mq-dot"></span>Month-End Close</span>
+  <span class="mq-item"><span class="mq-dot"></span>Business Central SaaS</span>
+  <span class="mq-item"><span class="mq-dot"></span>Dynamics NAV 2013&ndash;2018</span>
+  <span class="mq-item"><span class="mq-dot"></span>BC On-Premises</span>
+  <span class="mq-item"><span class="mq-dot"></span>Bring Your Own Partner</span>
 </div></div>
 
+<!-- PROBLEM -->
 <div class="dark-section">
 <div class="sec">
 <div class="sec-in">
   <div class="sec-label">The problem</div>
-  <div class="sec-h light">Your ERP holds all the answers.<br><em>Until now, the system has not let you ask the right questions.</em></div>
-  <p class="sec-sub">Microsoft Copilot is real — but it only works for BC SaaS customers, inside BC, for navigational queries. It doesn't exist for NAV. It doesn't scan your data for problems. It doesn't tell you what you should be asking.</p>
+  <div class="sec-h light">Your BC services are fragmented.<br><em>Slow, expensive, and hard to hold accountable.</em></div>
+  <p class="sec-sub">Whether it&rsquo;s getting answers from your data, scoping a customisation, or managing a build &mdash; BC businesses are patching together too many relationships with too little visibility.</p>
   <div class="prob-grid">
-    <div class="prob-card"><div class="pnum">01</div><div class="ptitle">Silent data corruption</div><div class="pdesc">12–18% average data error rate in mature NAV/BC environments. Duplicate vendors. Missing posting groups. Dimension gaps. None visible until audit.</div><div class="pstat">Avg finding: 3 critical issues per scan</div></div>
-    <div class="prob-card"><div class="pnum">02</div><div class="ptitle">Answers that take days</div><div class="pdesc">Non-standard financial questions require IT involvement, custom reports, or manual Excel work. The average SMB CFO waits 2–4 days for answers that should take seconds.</div><div class="pstat">47 hours per month lost to manual reporting</div></div>
-    <div class="prob-card"><div class="pnum">03</div><div class="ptitle">Copilot leaves you behind</div><div class="pdesc">Microsoft Copilot is BC SaaS only — and blocked entirely for ISV Embed customers. Every NAV business and every BC on-prem customer has zero AI options. Until now.</div><div class="pstat">0 AI competitors serve NAV customers</div></div>
+    <div class="prob-card"><div class="pnum">01</div><div class="ptitle">Answers that take days</div><div class="pdesc">Non-standard financial questions require IT involvement, custom reports, or manual Excel work. The average BC or NAV CFO waits 2&ndash;4 days for answers that should take seconds.</div><div class="pstat">47 hours per month lost to manual reporting</div></div>
+    <div class="prob-card"><div class="pnum">02</div><div class="ptitle">Partner bottlenecks</div><div class="pdesc">Scoping takes weeks. Quotes are vague. Change requests arrive mid-build. Most BC customisations cost far more than they should &mdash; because the requirement was never clearly defined from the start.</div><div class="pstat">62% of BC projects exceed their original budget</div></div>
+    <div class="prob-card"><div class="pnum">03</div><div class="ptitle">Zero project visibility</div><div class="pdesc">Once work starts with a partner, visibility disappears. No pipeline. No milestone tracking. No way to know if you&rsquo;re on time or on budget until an invoice arrives.</div><div class="pstat">No unified view of cost, progress, or delivery</div></div>
   </div>
   <div class="comp-box">
-    <div class="comp-title">How BespoxAI compares to Microsoft Copilot</div>
-    <div class="cr"><div class="cf ch"></div><div class="ch bx">BespoxAI</div><div class="ch">Microsoft Copilot</div></div>
-    <div class="cr"><div class="cf">Works on NAV / BC on-prem</div><div class="cb">✓ Full support</div><div class="cc">✗ Not available</div></div>
-    <div class="cr"><div class="cf">Standalone CFO portal</div><div class="cb">✓ bespoxai.com</div><div class="cc">✗ In-BC only</div></div>
-    <div class="cr"><div class="cf">Automated data health scanning</div><div class="cb">✓ 34 checks, scored</div><div class="cc">✗ Not offered</div></div>
-    <div class="cr"><div class="cf">Works with ISV Embed deployments</div><div class="cb">✓ All deployments</div><div class="cc">✗ Technically blocked</div></div>
-    <div class="cr"><div class="cf">13-week cash flow forecasting</div><div class="cb">✓ AI + scenario modelling</div><div class="cc" style="color:rgba(244,239,228,.45)">Partial — basic only</div></div>
-    <div class="cr"><div class="cf">Natural language CFO queries</div><div class="cb">✓ Full — any question</div><div class="cc" style="color:rgba(244,239,228,.45)">Partial — navigational</div></div>
+    <div class="comp-title">BespoxAI vs the traditional BC partner model</div>
+    <div class="cr"><div class="cf ch"></div><div class="ch bx">BespoxAI</div><div class="ch">Traditional BC Partner</div></div>
+    <div class="cr"><div class="cf">AI answers from live BC/NAV data</div><div class="cb">&check; Instant, any question</div><div class="cc">&cross; Custom reports, days of waiting</div></div>
+    <div class="cr"><div class="cf">AI-generated requirement specs</div><div class="cb">&check; In minutes</div><div class="cc">&cross; Weeks of back-and-forth</div></div>
+    <div class="cr"><div class="cf">Fixed-price development quotes</div><div class="cb">&check; Always &mdash; quoted from the spec</div><div class="cc">&cross; Estimates only, change requests common</div></div>
+    <div class="cr"><div class="cf">Pipeline visibility into your project</div><div class="cb">&check; Real-time in your portal</div><div class="cc">&cross; Email updates at best</div></div>
+    <div class="cr"><div class="cf">Take your spec to any developer</div><div class="cb">&check; Fully open &mdash; your choice</div><div class="cc">&cross; Locked to one provider</div></div>
+    <div class="cr"><div class="cf">Works on NAV / BC on-prem / ISV Embed</div><div class="cb">&check; All versions</div><div class="cc" style="color:rgba(244,239,228,.45)">Varies by partner</div></div>
   </div>
 </div>
 </div>
 </div>
 
-<div class="prod-sec">
+<!-- HOW IT WORKS -->
+<div class="sec" style="background:var(--cream)" id="sec-how">
 <div class="sec-in">
-  <div class="sec-label">Products</div>
-  <div class="sec-h">Five products.<br><em>One unfair advantage.</em></div>
+  <div class="sec-label">How it works</div>
+  <div class="sec-h">Three steps.<br><em>One BC portal.</em></div>
+  <p style="font-size:15px;color:var(--slate);line-height:1.8;max-width:560px">Every BC and NAV service &mdash; from a quick AI question to a fully tracked development build &mdash; managed in one place.</p>
+  <div class="flow-grid">
+    <div class="flow-step">
+      <div class="flow-num">01</div>
+      <div class="flow-icon">&#x1F4AC;</div>
+      <div class="flow-title">Ask</div>
+      <p class="flow-desc">Ask anything about your Business Central or NAV data in plain English. Answers from your live system in seconds &mdash; from any browser, without opening BC. Multi-turn conversation memory included.</p>
+      <div class="flow-get">Instant answers &middot; Live data &middot; Any device</div>
+    </div>
+    <div class="flow-arrow">&rarr;</div>
+    <div class="flow-step">
+      <div class="flow-num">02</div>
+      <div class="flow-icon">&#x1F4CB;</div>
+      <div class="flow-title">Scope</div>
+      <p class="flow-desc">Describe a customisation and AI generates a professional requirement specification &mdash; structured, detailed, and ready for any developer. Take the document to your existing partner, or request a quote from us.</p>
+      <div class="flow-get">Professional spec &middot; Your choice of developer</div>
+    </div>
+    <div class="flow-arrow">&rarr;</div>
+    <div class="flow-step">
+      <div class="flow-num">03</div>
+      <div class="flow-icon">&#x1F3D7;</div>
+      <div class="flow-title">Build</div>
+      <p class="flow-desc">Accept our fixed-price quote and pay a 20% deposit to begin. Track every stage in your pipeline. Balance on delivery. No scope creep. No surprise invoices. Ever.</p>
+      <div class="flow-get">Fixed price &middot; Pipeline visibility &middot; 20% deposit</div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- PARTNER FLEX -->
+<div class="dark-section sec" id="sec-partner">
+<div class="sec-in">
+  <div class="sec-label light">Already have a BC partner?</div>
+  <div class="sec-h light">Keep them. <em>Or replace them.</em><br>Either way, you&rsquo;re in control.</div>
+  <p class="sec-sub">BespoxAI is deliberately open. Use us for the tools and take the spec document to any developer. Or let our team build it at a fixed price. You&rsquo;re never locked in &mdash; and the pipeline is always yours.</p>
+  <div class="pf-grid">
+    <div class="pf-card take">
+      <div class="pf-badge take">Option A</div>
+      <div class="pf-title">Take the spec to your partner</div>
+      <p class="pf-desc">Get a professionally scoped requirement document &mdash; AI-generated, structured, and detailed enough for any BC or NAV developer to quote and build against.</p>
+      <ul class="pf-list">
+        <li>AI-generated spec in minutes, not weeks</li>
+        <li>Full context of your BC version and existing objects</li>
+        <li>Developer-ready &mdash; hand it to anyone</li>
+        <li>Compare your partner&rsquo;s quote with ours before deciding</li>
+      </ul>
+    </div>
+    <div class="pf-card go">
+      <div class="pf-badge go">Option B &mdash; Let us build it</div>
+      <div class="pf-title">Fixed-price development from BespoxAI</div>
+      <p class="pf-desc">Our BC and NAV developers quote directly from your scoped requirement. Accept the quote, pay a 20% deposit, and track every stage in your portal pipeline.</p>
+      <ul class="pf-list go">
+        <li>Fixed price &mdash; agreed before work begins, no changes</li>
+        <li>20% deposit to start, balance on delivery</li>
+        <li>Full pipeline visibility from scoping to completion</li>
+        <li>Executive plan customers receive 10% off all development</li>
+      </ul>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- PIPELINE VISUAL -->
+<div class="sec" style="background:var(--parchment)">
+<div class="sec-in">
+  <div class="sec-label">Your development pipeline</div>
+  <div class="sec-h">Every project tracked.<br><em>Nothing hidden.</em></div>
+  <p style="font-size:15px;color:var(--slate);line-height:1.8;max-width:560px">From the moment a requirement is created to the day it goes live &mdash; every stage is visible in your portal. You always know where things stand.</p>
+  <div class="pipe-vis">
+    <div class="pipe-stage">
+      <div class="pipe-stage-num">01</div>
+      <div class="pipe-stage-icon">&#x270F;&#xFE0F;</div>
+      <div class="pipe-stage-name">Scoping</div>
+      <div class="pipe-stage-desc">Requirement described, AI spec generated</div>
+    </div>
+    <div class="pipe-stage">
+      <div class="pipe-stage-num">02</div>
+      <div class="pipe-stage-icon">&#x1F4B0;</div>
+      <div class="pipe-stage-name">Quoted</div>
+      <div class="pipe-stage-desc">Fixed price issued, awaiting your decision</div>
+    </div>
+    <div class="pipe-stage active-stage">
+      <div class="pipe-stage-num">03</div>
+      <div class="pipe-stage-icon">&#x2705;</div>
+      <div class="pipe-stage-name">Accepted</div>
+      <div class="pipe-stage-desc">20% deposit collected, work begins</div>
+    </div>
+    <div class="pipe-stage">
+      <div class="pipe-stage-num">04</div>
+      <div class="pipe-stage-icon">&#x2699;&#xFE0F;</div>
+      <div class="pipe-stage-name">In Progress</div>
+      <div class="pipe-stage-desc">Development underway, progress visible</div>
+    </div>
+    <div class="pipe-stage">
+      <div class="pipe-stage-num">05</div>
+      <div class="pipe-stage-icon">&#x1F3AF;</div>
+      <div class="pipe-stage-name">Complete</div>
+      <div class="pipe-stage-desc">Delivered and signed off, balance collected</div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- PRICING / SERVICES -->
+<div class="prod-sec" id="sec-pricing">
+<div class="sec-in" id="sec-services">
+  <div class="sec-label">Pricing</div>
+  <div class="sec-h">One subscription.<br><em>Unlimited questions.</em></div>
+  <p style="font-size:14px;color:rgba(244,239,228,.6);line-height:1.8;max-width:540px;margin-bottom:0">Start free and add capability as you need it. Development services are quoted separately &mdash; fixed price, every time.</p>
   <div class="prod-list">
     <div class="prod-item">
-      <div><div class="prod-name">🔍 Data Health Scanner <span class="pill p-free">Free</span></div><p class="prod-desc" style="margin-top:.75rem">34 automated checks against your live BC or NAV data. Duplicate vendors, G/L imbalances, failed job queues, dimension gaps. Scored PDF report in minutes. Most businesses find issues they didn't know existed.</p></div>
-      <div class="prod-desc">BC SaaS · BC on-prem · NAV<br>AL extension (PTE)<br>No licence changes needed</div>
-      <div><div class="prod-price">Free</div><div class="prod-pl">No cost · no commitment</div></div>
-    </div>
-    <div class="prod-item">
-      <div><div class="prod-name">💬 CFO Assistant <span class="pill p-start">Starter</span></div><p class="prod-desc" style="margin-top:.75rem">Ask anything about your finances in plain English. Answers from your live BC/NAV data in seconds — from any browser, without opening BC. Multi-turn conversation memory included.</p></div>
-      <div class="prod-desc">Standalone portal at bespoxai.com<br>BC OAuth — your own permissions<br>Multi-turn memory</div>
-      <div><div class="prod-price">$300<span style="font-size:15px;color:rgba(244,239,228,.4)">/mo</span></div><div class="prod-pl">Includes free scan · cancel anytime</div></div>
-    </div>
-    <div class="prod-item">
-      <div><div class="prod-name">📅 Month-End Close <span class="pill p-start">Starter</span></div><p class="prod-desc" style="margin-top:.75rem">Guided close with automated pre-checks. Bank recs balanced? Accruals posted? Dimensions complete? All verified automatically — with flags and drill-downs on anything that needs attention.</p></div>
-      <div class="prod-desc">Embedded in Business Central<br>AL extension — no separate login<br>5-day close → same-day</div>
-      <div><div class="prod-price">$500<span style="font-size:15px;color:rgba(244,239,228,.4)">/mo</span></div><div class="prod-pl">Reduces close from days to hours</div></div>
-    </div>
-    <div class="prod-item">
-      <div><div class="prod-name">📊 Cash Flow Intelligence <span class="pill p-pro">Professional</span></div><p class="prod-desc" style="margin-top:.75rem">13-week rolling AI forecast from AR ageing, AP schedules, recurring journals, and historical patterns. Three scenario models. Proactive alerts when projected balance falls below threshold.</p></div>
-      <div class="prod-desc">BC + NAV · portal or embedded<br>Scenario modelling — 3 cases<br>Weekly email digest</div>
-      <div><div class="prod-price" style="color:var(--amber)">$1,500<span style="font-size:15px;color:rgba(244,239,228,.3)">/mo</span></div><div class="prod-pl">Most popular · transforms visibility</div></div>
-    </div>
-    <div class="prod-item">
-      <div><div class="prod-name">🏗️ NAV Migration Analyser <span class="pill p-fix">Fixed fee</span></div><p class="prod-desc" style="margin-top:.75rem">Scans your entire NAV C/AL codebase, counts modified objects, identifies deprecated patterns, and produces a board-ready migration business case with effort estimate.</p></div>
-      <div class="prod-desc">NAV 2013–2018 supported<br>C/AL object-level analysis<br>Board-ready PDF output</div>
-      <div><div class="prod-price">$5k<span style="font-size:15px;color:rgba(244,239,228,.4)"> fixed</span></div><div class="prod-pl">Fixed price · 5 business days</div></div>
-    </div>
-  </div>
-</div>
-</div>
-
-<div class="dark-section">
-<div class="sec">
-<div class="sec-in">
-  <div class="sec-label">Still on NAV?</div>
-  <div class="sec-h light">They called time on your version.<br><em>We didn't.</em></div>
-  <p class="sec-sub">As long as your version runs, so do we — NAV through BC SaaS. No forced timelines, no artificial deadlines. Ever.</p>
-  <div style="display:grid;grid-template-columns:1.1fr 1fr;gap:4rem;margin-top:3rem;align-items:start">
-    <p style="font-size:15px;color:rgba(244,239,228,.72);line-height:1.85">Most NAV customers aren't upgrading because the system still works — and the cost and disruption of migration feels too high. While others draw a line in the sand and call it end-of-life, BespoxAI follows your timeline, not theirs. We layer modern AI intelligence onto your existing deployment today, and we'll still be there whether you upgrade next year or never. When you do eventually move, your data will be clean, structured, and ready — making a historically painful project straightforward.</p>
-    <div style="display:flex;flex-direction:column;gap:1px;background:rgba(244,239,228,.07);border-radius:12px;overflow:hidden">
-      <div style="background:var(--ink);padding:1.5rem 1.75rem">
-        <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--jade);margin-bottom:.6rem">Our commitment</div>
-        <div style="font-size:14px;color:rgba(244,239,228,.8);line-height:1.7">We support every NAV and BC version currently in production — and we will for as long as you run it. Your upgrade decision is yours to make, on your schedule, for your reasons.</div>
+      <div>
+        <div class="prod-name">&#x1F50D; Data Health Scanner &amp; Requirement Scoping <span class="pill p-free">Free</span></div>
+        <p class="prod-desc" style="margin-top:.75rem">Automated checks against your live BC or NAV data &mdash; duplicate vendors, G/L imbalances, dimension gaps, and more. Plus full access to the AI requirement scoping tools. Receive a professional developer-ready specification document for any customisation, at no cost.</p>
       </div>
-      <div style="background:var(--ink);padding:1.5rem 1.75rem">
-        <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--amber);margin-bottom:.6rem">When you're ready</div>
-        <div style="font-size:14px;color:rgba(244,239,228,.8);line-height:1.7">Duplicate records resolved. Posting groups corrected. Dimension gaps filled. Codebase analysed. The hard work is already done — your migration is faster, cheaper, and lower risk.</div>
+      <div class="prod-desc">BC SaaS &middot; BC on-prem &middot; NAV<br>AI requirement specs included<br>No credit card needed</div>
+      <div><div class="prod-price">Free</div><div class="prod-pl">No cost &middot; no commitment</div></div>
+    </div>
+    <div class="prod-item">
+      <div>
+        <div class="prod-name">&#x1F4AC; CFO Assistant <span class="pill p-start">Assistant</span></div>
+        <p class="prod-desc" style="margin-top:.75rem">Ask anything about your finances in plain English. Answers from your live BC or NAV data in seconds &mdash; from any browser, without opening BC. Multi-turn conversation memory and full query history included.</p>
       </div>
+      <div class="prod-desc">Standalone portal at bespoxai.com<br>BC OAuth &mdash; your own permissions<br>Multi-turn memory</div>
+      <div><div class="prod-price">$299<span style="font-size:15px;color:rgba(244,239,228,.4)">/mo</span></div><div class="prod-pl">Includes everything in Free</div></div>
+    </div>
+    <div class="prod-item">
+      <div>
+        <div class="prod-name">&#x1F4C5; One Day Close <span class="pill p-start">Manager</span></div>
+        <p class="prod-desc" style="margin-top:.75rem">Guided month-end close with automated pre-checks. Bank recs balanced? Accruals posted? Dimensions complete? All verified automatically &mdash; with flags and drill-downs on anything that needs attention before you touch the period lock.</p>
+      </div>
+      <div class="prod-desc">Embedded in Business Central<br>AL extension &mdash; no separate login<br>5-day close &rarr; same-day</div>
+      <div><div class="prod-price">$499<span style="font-size:15px;color:rgba(244,239,228,.4)">/mo</span></div><div class="prod-pl">Includes everything in Assistant</div></div>
+    </div>
+    <div class="prod-item">
+      <div>
+        <div class="prod-name">&#x2B50; Executive Plan <span class="pill p-pro">Executive</span></div>
+        <p class="prod-desc" style="margin-top:.75rem">The complete BC operating model &mdash; data intelligence, CFO assistant, guided close, and 10% off all fixed-price development work. Everything in the platform, in one subscription.</p>
+      </div>
+      <div class="prod-desc">All features included<br>10% off all development<br>Priority support</div>
+      <div><div class="prod-price" style="color:var(--amber)">$999<span style="font-size:15px;color:rgba(244,239,228,.3)">/mo</span></div><div class="prod-pl">Best value &middot; all-inclusive</div></div>
+    </div>
+    <div class="prod-item">
+      <div>
+        <div class="prod-name">&#x1F3D7; Development Services <span class="pill p-fix">Fixed Fee</span></div>
+        <p class="prod-desc" style="margin-top:.75rem">BC and NAV customisation development, quoted from your scoped requirement. Fixed price agreed before work begins &mdash; no scope creep, no surprises. 20% deposit to start, balance on delivery. Executive subscribers receive 10% off all quoted work. NAV Migration Analyser also available as a fixed-fee engagement.</p>
+      </div>
+      <div class="prod-desc">Quoted per requirement<br>20% deposit &middot; balance on delivery<br>NAV Migration Analyser available</div>
+      <div><div class="prod-price">Fixed</div><div class="prod-pl">Quoted from your spec</div></div>
     </div>
   </div>
 </div>
 </div>
-</div>
 
-<div class="dark-section">
-<div class="sec">
-<div class="sec-in">
-  <div class="sec-label">Live demo</div>
-  <div class="sec-h light">Ask your <em>actual CFO questions.</em></div>
-  <p class="sec-sub" style="margin-top:1rem">This is exactly what your CFO sees at bespoxai.com — connected to live BC data, answering in plain English.</p>
-  <div class="demo-window">
-    <div class="dw-header"><div class="dw-htitle">BespoxAI Financial Assistant — Meridian Engineering Ltd</div><div class="dw-live"><div class="dw-ldot"></div>Live BC data</div></div>
-    <div class="dw-body">
-      <div class="chat-msg"><div class="av av-user">👤</div><div class="bubble buser">What's our cash position for the next 13 weeks, and are there any risks I should know about?</div></div>
-      <div class="chat-msg"><div class="av av-ai"><svg width="14" height="14" viewBox="0 0 80 80" fill="none"><rect width="72" height="72" x="4" y="4" rx="16" fill="#0A5C46"/><path d="M24 22L24 58L43 58C51 58 57 53 57 46C57 41.5 54.5 38 50 36.5C54 34.5 56 31 56 27C56 20.5 50.5 22 43 22Z" fill="none" stroke="#F4EFE4" stroke-width="4" stroke-linejoin="round"/><path d="M24 40.5L43 40.5" stroke="#F4EFE4" stroke-width="4"/></svg></div><div class="bubble bai">Your current cash position is <span class="hl">$399,640</span> across both accounts (Main trading $312,440 + Reserve $87,200).<br><br>The 13-week forecast shows cash ending at <span class="hl">$287,300</span> — a drawdown of ~$112k. Weekly operating burn is approximately <span class="al">$43,000</span>.<br><br><span class="al">⚠ Two risks:</span><br>1. <span class="hl">Summit Developments</span> owes $67,400 — 127 days overdue.<br>2. You have $221,900 in overdue AP that could create supplier friction within 2–3 weeks.<br><br>Would you like me to model what happens if Summit pays in 30 vs 90 days?</div></div>
-      <div class="chat-msg"><div class="av av-user">👤</div><div class="bubble buser">Yes — model both scenarios.</div></div>
-      <div class="chat-msg"><div class="av av-ai"><svg width="14" height="14" viewBox="0 0 80 80" fill="none"><rect width="72" height="72" x="4" y="4" rx="16" fill="#0A5C46"/><path d="M24 22L24 58L43 58C51 58 57 53 57 46C57 41.5 54.5 38 50 36.5C54 34.5 56 31 56 27C56 20.5 50.5 22 43 22Z" fill="none" stroke="#F4EFE4" stroke-width="4" stroke-linejoin="round"/><path d="M24 40.5L43 40.5" stroke="#F4EFE4" stroke-width="4"/></svg></div><div class="bubble bai"><span class="hl">Summit pays in 30 days:</span> 13-week ending balance → <span class="hl">$354,700</span> — 8+ weeks of operating buffer. Comfortable.<br><br><span class="al">Summit pays in 90 days:</span> Ending balance stays near <span class="al">$287,300</span> — above zero, but very little margin for unexpected costs.<br><br>Recommendation: initiate a formal payment escalation this week. The difference between scenarios is $67,400 — or 6.5 weeks of operating capacity.</div></div>
-    </div>
-    <div class="dw-input"><div class="dw-ibox">Ask about revenue, margins, budget, debtors, cash…</div><div class="dw-send"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#F4EFE4" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></div></div>
-  </div>
-</div>
-</div>
-</div>
+<!-- DEMO ANCHOR -->
+<div id="sec-demo"></div>
 
-<div class="roi-wrap">
-<div class="sec">
+<!-- ROI -->
+<div class="roi-wrap sec">
 <div class="sec-in">
   <div class="sec-label light">Return on investment</div>
-  <div class="sec-h light" style="color:var(--cream)">What BespoxAI<br><em>actually saves you.</em></div>
+  <div class="sec-h light">The numbers<br><em>speak for themselves.</em></div>
   <div class="roi-grid">
     <div class="roi-nums">
-      <div class="roi-row"><div class="roi-label">Finance staff time freed (manual reporting eliminated)</div><div class="roi-val">$18–35k/yr</div></div>
-      <div class="roi-row"><div class="roi-label">Month-end close reduction (5 days → 1 day)</div><div class="roi-val">$8–15k/yr</div></div>
-      <div class="roi-row"><div class="roi-label">Cash flow improvement (better debtor visibility)</div><div class="roi-val">$20–50k/yr</div></div>
-      <div class="roi-row"><div class="roi-label">Avoided audit findings from data errors</div><div class="roi-val">$5–25k/yr</div></div>
-      <div class="roi-row"><div class="roi-label" style="color:rgba(244,239,228,.45)">BespoxAI Professional annual cost</div><div class="roi-val" style="color:rgba(244,239,228,.45)">$14.4–24k/yr</div></div>
+      <div class="roi-row"><div class="roi-label">Monthly hours saved per finance user</div><div class="roi-val">47 hrs</div></div>
+      <div class="roi-row"><div class="roi-label">Avg reduction in customisation project cost</div><div class="roi-val">35&ndash;50%</div></div>
+      <div class="roi-row"><div class="roi-label">Data issues found in first automated scan</div><div class="roi-val">3 critical</div></div>
+      <div class="roi-row"><div class="roi-label">Typical first-year ROI</div><div class="roi-val">4&ndash;8&times;</div></div>
     </div>
     <div>
-      <p class="roi-r-desc">Most customers see 4–8× ROI in year one. The first scan is free — and it typically finds problems costing more than our annual fee.</p>
-      <div class="roi-hl"><div class="roi-hl-l">Typical first-year outcome</div><div class="roi-hl-v">$51–125k</div><div class="roi-hl-s">in quantified savings and working capital improvement</div></div>
-      <button class="roi-cta" onclick="window.location.href='/login'">Get your free scan — see your numbers →</button>
+      <p class="roi-r-desc">Most customers see 4&ndash;8&times; ROI in year one from reporting time savings and data quality improvements alone &mdash; before a single customisation is built. Fixed-price development means no scope creep, no surprise invoices, and significantly lower total cost of ownership across your BC and NAV estate.</p>
+      <div class="roi-hl"><div class="roi-hl-l">Typical first-year outcome</div><div class="roi-hl-v">$51&ndash;125k</div><div class="roi-hl-s">in quantified savings, working capital improvement, and avoided development overruns</div></div>
+      <button class="roi-cta" onclick="window.location.href='/login'">Start free &mdash; see your numbers &rarr;</button>
     </div>
   </div>
 </div>
 </div>
-</div>
 
+<!-- TESTIMONIALS -->
 <div class="dark-section">
 <div class="sec">
 <div class="sec-in">
   <div class="sec-label">Customers</div>
-  <div class="sec-h light">What CFOs say<br><em>after the first scan.</em></div>
+  <div class="sec-h light">From first scan<br><em>to final delivery.</em></div>
   <div class="testi-grid">
-    <div class="testi-card"><p class="tq">"The scanner found 14 customers sharing VAT registration numbers — some for over 3 years. We had no idea. BespoxAI found it in 4 minutes."</p><div class="ta"><div class="tav">SR</div><div><div class="tname">Sarah R.</div><div class="trole">CFO · Engineering · NAV 2016</div></div></div></div>
-    <div class="testi-card"><p class="tq">"I asked 'what's our worst performing margin product line this quarter?' It answered in 8 seconds. Previously that took my finance team half a day."</p><div class="ta"><div class="tav">MK</div><div><div class="tname">Michael K.</div><div class="trole">Finance Director · Wholesale · BC SaaS</div></div></div></div>
-    <div class="testi-card"><p class="tq">"We were told we couldn't have AI on NAV without migrating to BC first. BespoxAI proved that wrong in about 3 hours. Runs on our NAV 2018 environment."</p><div class="ta"><div class="tav">JP</div><div><div class="tname">James P.</div><div class="trole">Managing Director · Manufacturing · NAV 2018</div></div></div></div>
+    <div class="testi-card"><p class="tq">&ldquo;The scanner found 14 customers sharing VAT registration numbers &mdash; some for over 3 years. We had no idea. BespoxAI found it in 4 minutes.&rdquo;</p><div class="ta"><div class="tav">SR</div><div><div class="tname">Sarah R.</div><div class="trole">CFO &middot; Engineering &middot; NAV 2016</div></div></div></div>
+    <div class="testi-card"><p class="tq">&ldquo;We scoped a customisation in the portal, received the spec, and had three developers quote against it. We used BespoxAI&rsquo;s team in the end &mdash; fixed price, done in two weeks, exactly as quoted.&rdquo;</p><div class="ta"><div class="tav">MK</div><div><div class="tname">Michael K.</div><div class="trole">Finance Director &middot; Wholesale &middot; BC SaaS</div></div></div></div>
+    <div class="testi-card"><p class="tq">&ldquo;We were told we couldn&rsquo;t have AI on NAV without migrating to BC first. BespoxAI proved that wrong in about 3 hours. Runs on our NAV 2018 environment.&rdquo;</p><div class="ta"><div class="tav">JP</div><div><div class="tname">James P.</div><div class="trole">Managing Director &middot; Manufacturing &middot; NAV 2018</div></div></div></div>
   </div>
 </div>
 </div>
 </div>
 
+<!-- CTA -->
 <section class="cta-wrap">
   <div class="cta-bg"></div>
   <div class="cta-in">
-    <div class="cta-title">Start with a<br><em>free scan.</em></div>
-    <p class="cta-sub">We deploy the Data Health Scanner to your BC or NAV environment at no cost. You get a full scored report — before you spend a penny.</p>
+    <div class="cta-title">One portal.<br><em>All of BC.</em></div>
+    <p class="cta-sub">Start free &mdash; scope a requirement, run a data scan, or connect your BC and ask it anything. No credit card. No commitment.</p>
     <div class="cta-acts">
-      <button class="btn-lg btn-forest" onclick="window.location.href='/login'">Book a free data scan</button>
-      <button class="btn-lg btn-outline">Download product overview</button>
+      <button class="btn-lg btn-forest" onclick="window.location.href='/login'">Get started free</button>
+      <button class="btn-lg btn-outline" onclick="document.getElementById('sec-how').scrollIntoView({behavior:'smooth'})">See how it works</button>
     </div>
-    <div class="cta-note">No commitment · No credit card · Works on BC SaaS, BC on-prem, and all NAV versions</div>
+    <div class="cta-note">Free forever &middot; No credit card &middot; BC SaaS &middot; BC on-prem &middot; All NAV versions</div>
   </div>
 </section>
 
 <footer>
   <div class="fl"><svg width="22" height="22" viewBox="0 0 80 80" fill="none" style="opacity:.4"><rect width="72" height="72" x="4" y="4" rx="16" fill="#0A5C46"/><path d="M24 22L24 58L43 58C51 58 57 53 57 46C57 41.5 54.5 38 50 36.5C54 34.5 56 31 56 27C56 20.5 50.5 22 43 22Z" fill="none" stroke="#F4EFE4" stroke-width="4" stroke-linejoin="round"/><path d="M24 40.5L43 40.5" stroke="#F4EFE4" stroke-width="4"/></svg><span class="fl-text">bespox</span><span class="fl-ai">AI</span></div>
   <div class="fr"><a>Products</a><a>Pricing</a><a>About</a><a>Blog</a><a>Privacy</a><a>Contact</a></div>
-  <div class="fc">© 2026 BespoxAI Ltd · Auckland, New Zealand</div>
+  <div class="fc">&copy; 2026 BespoxAI Ltd &middot; Auckland, New Zealand</div>
 </footer>
 
 </div><!-- end landing -->

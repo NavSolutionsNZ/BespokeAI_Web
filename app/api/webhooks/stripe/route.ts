@@ -183,6 +183,21 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
       },
     })
   }
+
+  if (paymentType === 'spec_review') {
+    const requirementId = metadata.requirementId
+    if (!requirementId) return
+    const now = new Date()
+    await (prisma as any).requirement.update({
+      where: { id: requirementId },
+      data: {
+        reviewPaidAt: now,
+        reviewStripeSessionId: session.id,
+        reviewSubmittedAt: now,
+        status: 'submitted',
+      },
+    })
+  }
 }
 
 async function handleInvoicePaid(invoice: Stripe.Invoice) {

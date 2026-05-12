@@ -11,6 +11,8 @@ export interface Requirement {
   quoteRejectedAt: string | null; quoteRejectionReason: string | null
   feasibility: string | null; feasibilityNotes: string | null
   feasibilityCostRange: string | null; feasibilityCheckedAt: string | null
+  reviewPaidAt: string | null; reviewStripeSessionId: string | null
+  reviewBypassed: boolean; reviewIncluded: boolean; reviewSubmittedAt: string | null
   createdAt: string; updatedAt: string
   user: { name: string | null; email: string }
   tenant: { name: string }
@@ -127,6 +129,8 @@ export default function RequirementsBuilder({ userRole, tenantId, bcConnected=fa
 
   const [feasLoadingId, setFeasLoadingId] = useState<string|null>(null)
   const [feasErr, setFeasErr]             = useState('')
+  const [reviewAllowance, setReviewAllowance] = useState<{included:number;used:number;remaining:number}|null>(null)
+  const [reviewLoading, setReviewLoading]     = useState(false)
 
   async function load() {
     setLoading(true); setError('')
@@ -139,6 +143,15 @@ export default function RequirementsBuilder({ userRole, tenantId, bcConnected=fa
     finally { setLoading(false) }
   }
   useEffect(() => { load() }, [])
+  useEffect(() => {
+    if (!isSuperadmin) {
+      fetch('/api/billing/review-allowance')
+        .then(r => r.json())
+        .then(d => { if (d.included !== undefined) setReviewAllowance(d) })
+        .catch(() => {})
+    }
+  }, [isSuperadmin])
+
   useEffect(() => {
     if (isSuperadmin && selected?.status === 'fully_paid') {
       fetch(`/api/requirements/${selected.id}/objects`)
@@ -175,6 +188,27 @@ export default function RequirementsBuilder({ userRole, tenantId, bcConnected=fa
       setSelected(d.requirement)
     } catch (e: any) { setFeasErr(e.message) }
     finally { setFeasLoadingId(null) }
+  }
+
+  async function submitForReview(req: Requirement) {
+    setReviewLoading(true)
+    try {
+      const res = await fetch(`/api/requirements/${req.id}/submit-for-review`, { method: 'POST' })
+      const d   = await res.json()
+      if (!res.ok) throw new Error(d.error)
+      if (d.checkoutUrl) {
+        window.location.href = d.checkoutUrl
+      } else {
+        setReqs(prev => prev.map(r => r.id === req.id ? d.requirement : r))
+        setSelected(d.requirement)
+        // Refresh allowance count
+        fetch('/api/billing/review-allowance')
+          .then(r => r.json())
+          .then(d => { if (d.included !== undefined) setReviewAllowance(d) })
+          .catch(() => {})
+      }
+    } catch (e: any) { alert(e.message) }
+    finally { setReviewLoading(false) }
   }
 
   async function createReq() {
@@ -939,6 +973,25 @@ export default function RequirementsBuilder({ userRole, tenantId, bcConnected=fa
                 </div>
               )}
 
+              {/* Review payment status — shown when review has been paid/included/bypassed */}
+              {(req.reviewPaidAt||req.reviewIncluded||req.reviewBypassed)&&req.status!=='draft'&&(
+                <div style={{background:'rgba(26,146,114,0.06)',border:'1px solid rgba(26,146,114,0.2)',borderRadius:8,padding:'10px 14px',display:'flex',alignItems:'center',gap:10}}>
+                  <span style={{fontSize:14,flexShrink:0}}>{req.reviewBypassed?'🔓':req.reviewIncluded?'🎁':'✅'}</span>
+                  <div>
+                    <p style={{fontFamily:'var(--font-mono)',fontSize:8,letterSpacing:'0.12em',textTransform:'uppercase',color:'var(--jade)',marginBottom:2}}>
+                      {req.reviewBypassed?'Review fee waived':'Review fee '+(req.reviewIncluded?'included with plan':'paid')}
+                    </p>
+                    <p style={{fontFamily:'var(--font-body)',fontSize:11,color:'var(--slate)',margin:0,lineHeight:1.5}}>
+                      {req.reviewBypassed
+                        ?'A senior developer will review this specification before a quote is issued.'
+                        :req.reviewIncluded
+                          ?'Covered by your plan. A senior developer will review this specification before a quote is issued.'
+                          :'$249 NZD review fee paid. This will be credited against development costs. A senior developer will review before a quote is issued.'}
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {/* Fully paid banner */}
               {req.status==='fully_paid'&&(
                 <div style={{background:'rgba(26,146,114,0.08)',border:'1px solid rgba(26,146,114,0.25)',borderRadius:10,padding:'14px 16px',display:'flex',alignItems:'center',gap:10}}>
@@ -953,8 +1006,30 @@ export default function RequirementsBuilder({ userRole, tenantId, bcConnected=fa
               {/* Actions */}
               <div style={{display:'flex',gap:10,flexWrap:'wrap'}}>
                 {!isSuperadmin&&req.status==='draft'&&<>
-                  <button onClick={()=>patch(req.id,{status:'submitted'})} disabled={actLoading} style={pBTN}>Submit for Review →</button>
-                  <button onClick={()=>deleteReq(req.id)} style={{...sBTN,color:'#A32D2D'}}>Delete Draft</button>
+                  {spec ? (
+                    <div style={{display:'flex',flexDirection:'column',gap:10,flex:'0 0 auto'}}>
+                      <div style={{background:'rgba(10,92,70,0.04)',border:'1px solid rgba(10,92,70,0.15)',borderRadius:8,padding:'12px 14px'}}>
+                        <p style={{fontFamily:'var(--font-mono)',fontSize:8,letterSpacing:'0.12em',textTransform:'uppercase',color:'var(--forest)',marginBottom:5}}>Senior Developer Review — {reviewAllowance&&reviewAllowance.remaining>0?'Included with your plan':'$249 NZD'}</p>
+                        <p style={{fontFamily:'var(--font-body)',fontSize:12,color:'var(--slate)',lineHeight:1.6,margin:0}}>
+                          Every specification is reviewed by a senior BC developer before a quote is issued.
+                          {reviewAllowance&&reviewAllowance.remaining>0
+                            ? ` You have ${reviewAllowance.remaining} included review${reviewAllowance.remaining!==1?'s':''} remaining this month.`
+                            : ' This fee is credited in full against development costs if you proceed.'}
+                        </p>
+                      </div>
+                      <div style={{display:'flex',gap:10,flexWrap:'wrap'}}>
+                        <button onClick={()=>submitForReview(req)} disabled={reviewLoading} style={{...pBTN,opacity:reviewLoading?0.7:1}}>
+                          {reviewLoading?'Processing…':reviewAllowance&&reviewAllowance.remaining>0?'Submit for Senior Review (included) →':'Submit for Senior Review — $249 NZD →'}
+                        </button>
+                        <button onClick={()=>deleteReq(req.id)} style={{...sBTN,color:'#A32D2D'}}>Delete Draft</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <button onClick={()=>patch(req.id,{status:'submitted'})} disabled={actLoading} style={pBTN}>Submit for Review →</button>
+                      <button onClick={()=>deleteReq(req.id)} style={{...sBTN,color:'#A32D2D'}}>Delete Draft</button>
+                    </>
+                  )}
                 </>}
                 {!isSuperadmin&&req.status==='quoted'&&<>
                   <button onClick={()=>patch(req.id,{status:'deposit_required'})} disabled={actLoading} style={{...pBTN,background:'#085040'}}>✓ Accept Quote & Proceed</button>
@@ -962,6 +1037,11 @@ export default function RequirementsBuilder({ userRole, tenantId, bcConnected=fa
                     ✕ Reject Quote
                   </button>
                 </>}
+                {isSuperadmin&&req.status==='draft'&&spec&&(
+                  <button onClick={()=>submitForReview(req)} disabled={reviewLoading} style={{...pBTN,background:'#3B5249',opacity:reviewLoading?0.7:1}}>
+                    {reviewLoading?'Processing…':'↪ Bypass Review Fee & Submit'}
+                  </button>
+                )}
                 {isSuperadmin&&req.status==='submitted'&&<>
                   <button onClick={()=>patch(req.id,{status:'in_review'})} disabled={actLoading} style={pBTN}>→ Mark In Review</button>
                   <button onClick={()=>{setShowSB(true);setShowQF(false)}} style={{background:'rgba(163,45,45,0.08)',border:'1px solid rgba(163,45,45,0.2)',color:'#A32D2D',borderRadius:8,padding:'9px 16px',cursor:'pointer',fontFamily:'var(--font-body)',fontSize:13}}>↩ Send Back with Questions</button>

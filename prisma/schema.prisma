@@ -163,6 +163,13 @@ model Requirement {
   feasibilityCostRange String?            // 'NZD 2-5k' | '5-15k' | '15k+' — development only
   feasibilityCheckedAt DateTime?          // Timestamp of most recent check
 
+  // Senior developer review fee — $249 NZD (credited against dev if they proceed)
+  reviewPaidAt          DateTime?          // Set by webhook when $249 payment confirmed
+  reviewStripeSessionId String?            // Stripe Checkout Session ID for review payment
+  reviewBypassed        Boolean  @default(false) // Superadmin can waive the fee
+  reviewIncluded        Boolean  @default(false) // Covered by Manager/Executive monthly allowance
+  reviewSubmittedAt     DateTime?          // When review was submitted (any payment method)
+
   tenant  Tenant             @relation(fields: [tenantId], references: [id])
   user    User               @relation(fields: [userId], references: [id])
   objects TenantObjectFile[]

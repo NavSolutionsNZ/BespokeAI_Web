@@ -29,6 +29,8 @@ export async function GET() {
     subscriptionStatus: tenantFull?.subscriptionStatus ?? null,
     trialEndsAt: tenant?.trialEndsAt ?? null,
     prices: {
+      starter_month:    process.env.STRIPE_PRICE_STARTER_MONTHLY   ?? null,
+      starter_year:     process.env.STRIPE_PRICE_STARTER_ANNUAL    ?? null,
       assistant_month:  process.env.STRIPE_PRICE_ASSISTANT_MONTHLY ?? null,
       assistant_year:   process.env.STRIPE_PRICE_ASSISTANT_ANNUAL  ?? null,
       manager_month:    process.env.STRIPE_PRICE_MANAGER_MONTHLY   ?? null,

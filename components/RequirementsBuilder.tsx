@@ -266,6 +266,7 @@ export default function RequirementsBuilder({ userRole, tenantId, bcConnected=fa
       const res = await fetch(`/api/requirements/${req.id}/ai-spec`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
       const d   = await res.json()
       if (res.status === 429) { setSpecErr(d.error); setGen(false); return }
+      if (res.status === 402) { setSpecErr(d.error); setGen(false); return }
       if (!res.ok) throw new Error(d.error)
       setReqs(prev=>prev.map(r=>r.id===req.id?d.requirement:r))
       setSelected(d.requirement)

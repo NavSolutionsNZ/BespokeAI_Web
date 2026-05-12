@@ -237,6 +237,31 @@ export async function POST(
     }, { status: 429 })
   }
 
+  // ── Free tier: 1 spec total across all requirements ───────────────────────
+  // Only checked on first generation for a requirement (prevGenCount === 0)
+  // Refinements on the same requirement are still allowed
+  if (user.role !== 'superadmin' && prevGenCount === 0) {
+    const tenantTier = await (prisma as any).tenant.findUnique({
+      where: { id: req_data.tenantId },
+      select: { tier: true },
+    })
+    if (tenantTier?.tier === 'free') {
+      const existingSpecCount = await (prisma as any).requirement.count({
+        where: {
+          tenantId: req_data.tenantId,
+          aiSpec:   { not: null },
+          id:       { not: params.id },
+        },
+      })
+      if (existingSpecCount >= 1) {
+        return NextResponse.json({
+          error: 'The free plan includes 1 AI specification so you can evaluate the output quality. Upgrade to Starter ($59/mo) for unlimited spec generation.',
+          upgradeRequired: true,
+        }, { status: 402 })
+      }
+    }
+  }
+
   const isRefinement = prevGenCount > 0
 
   // ── Build context — only inputs specific to THIS requirement ─────────────

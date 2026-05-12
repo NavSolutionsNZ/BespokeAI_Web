@@ -31,6 +31,7 @@ function BillingPageInner() {
         if (d.tier) setCurrentTier(d.tier)
         if (d.subscriptionStatus) setSubscriptionStatus(d.subscriptionStatus)
         if (d.prices) setPrices(d.prices)
+        // starter prices may be null until configured
       })
       .catch(() => {})
   }, [])
@@ -38,21 +39,51 @@ function BillingPageInner() {
   // Plan definitions with server-supplied price IDs
   const paid_plans = [
     {
+      id: 'starter', name: 'Starter', monthlyNZD: 59, annualNZD: 649,
+      description: 'Unlimited scoping + full feasibility output',
+      features: [
+        'Everything in Free',
+        'Unlimited AI spec generation',
+        'Full feasibility output with cost range',
+        'Data health scanner (BC connection required)',
+        'Email support',
+      ],
+      monthlyPriceId: prices.starter_month, annualPriceId: prices.starter_year,
+    },
+    {
       id: 'assistant', name: 'Assistant', monthlyNZD: 299, annualNZD: 3289,
-      description: 'CFO Assistant + everything in Free',
-      features: ['Everything in Free', 'CFO Assistant (AI-powered BC queries)', 'Query history & data visualisation', 'Priority support'],
+      description: 'CFO Assistant with live BC data queries',
+      features: [
+        'Everything in Starter',
+        'CFO Assistant — ask questions in plain English, get live BC answers',
+        'Query history & data visualisation',
+        '1 included spec review per month',
+        'Priority support',
+      ],
       monthlyPriceId: prices.assistant_month, annualPriceId: prices.assistant_year,
     },
     {
       id: 'manager', name: 'Manager', monthlyNZD: 499, annualNZD: 5489,
-      description: 'Assistant + future One Day Close + everything in Free',
-      features: ['Everything in Assistant', 'One Day Close Assistant (coming soon)', 'Advanced reporting', 'Priority support'],
+      description: 'Everything in Assistant + One Day Close',
+      features: [
+        'Everything in Assistant',
+        '2 included spec reviews per month',
+        'One Day Close Assistant (coming soon)',
+        'Advanced reporting',
+        'Priority support',
+      ],
       monthlyPriceId: prices.manager_month, annualPriceId: prices.manager_year,
     },
     {
       id: 'executive', name: 'Executive', monthlyNZD: 999, annualNZD: 10989,
       description: 'Everything included + 10% off all paid services',
-      features: ['Everything in Manager', '10% discount on Customisations', '10% discount on Migration Analyser', 'Dedicated support'],
+      features: [
+        'Everything in Manager',
+        '2 included spec reviews per month',
+        '10% discount on all customisation work',
+        '10% discount on Migration Analyser',
+        'Dedicated support',
+      ],
       monthlyPriceId: prices.executive_month, annualPriceId: prices.executive_year,
     },
   ]
@@ -109,7 +140,7 @@ function BillingPageInner() {
   }
 
   const tierLabel: Record<string, string> = {
-    free: 'Free', trial: 'Trial', assistant: 'Assistant',
+    free: 'Free', trial: 'Trial', starter: 'Starter', assistant: 'Assistant',
     manager: 'Manager', executive: 'Executive',
     paid: 'Paid', enterprise: 'Enterprise',
   }
@@ -185,11 +216,19 @@ function BillingPageInner() {
             <div style={{ fontFamily: 'var(--font-display)', fontSize: 36, fontWeight: 700, color: 'var(--ink)', marginBottom: 4 }}>$0</div>
             <div style={{ fontSize: 12, color: 'var(--slate)', marginBottom: 20 }}>Forever free</div>
             <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 24px', flex: 1 }}>
-              {['Custom BC development requests', 'Migration Analyser access', 'Email support'].map(f => (
+              {[
+                'Unlimited feasibility checks',
+                '1 free AI specification (evaluate the quality)',
+                'Full development pipeline access',
+                'Migration Analyser access',
+              ].map(f => (
                 <li key={f} style={{ fontSize: 13, color: 'var(--slate)', padding: '5px 0', display: 'flex', alignItems: 'flex-start', gap: 8 }}>
                   <span style={{ color: 'var(--jade)', flexShrink: 0, marginTop: 1 }}>✓</span>{f}
                 </li>
               ))}
+              <li style={{ fontSize: 13, color: 'rgba(59,82,73,0.45)', padding: '5px 0', display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                <span style={{ flexShrink: 0, marginTop: 1 }}>○</span>Data health scanner (requires BC connection)
+              </li>
             </ul>
             {currentTier === 'free' ? (
               <div style={{ textAlign: 'center', padding: '10px', borderRadius: 8, background: 'rgba(10,92,70,0.06)', color: 'var(--forest)', fontSize: 13, fontWeight: 600 }}>Current plan</div>
@@ -270,9 +309,19 @@ function BillingPageInner() {
           </div>
         )}
 
+        {/* Review fee note */}
+        <div style={{ background: 'var(--white)', border: '1px solid var(--fog)', borderRadius: 12, padding: '20px 24px', marginBottom: 32, maxWidth: 600, margin: '0 auto 32px' }}>
+          <p style={{ fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--forest)', marginBottom: 8 }}>Senior Developer Review — $249 NZD</p>
+          <p style={{ fontSize: 13, color: 'var(--slate)', lineHeight: 1.65, margin: 0 }}>
+            Every specification is reviewed by a senior BC developer before a quote is issued — so every quote you receive has been validated by a human, not generated directly from AI output.
+            The $249 review fee applies to all plans and is <strong style={{ color: 'var(--ink)' }}>credited in full against development costs</strong> if you proceed.
+            Manager and Executive plan customers receive included reviews each month.
+          </p>
+        </div>
+
         {/* FAQ note */}
         <div style={{ textAlign: 'center', fontSize: 12, color: 'var(--slate)', lineHeight: 1.6 }}>
-          All plans include a 14-day trial period. Cancel anytime. Customisations and Migration Analyser are available on all plans as separately priced services.
+          Cancel anytime. Customisations and Migration Analyser are available on all plans as separately priced services.
           {currentTier === 'executive' && ' Executive plan customers receive a 10% discount on all paid services.'}
         </div>
 

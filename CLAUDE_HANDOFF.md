@@ -104,7 +104,8 @@ SQL migrations on Vercel Postgres, environment variables, DNS, Cloudflare tunnel
 | Executive | $999 | $10,989 | Everything + 10% off all development services |
 
 ### Development Services (separate to subscription)
-- Fixed price, quoted from the scoped requirement spec
+- Every spec is reviewed by a senior BC developer before a quote is issued
+- Fixed price, quoted from the reviewed spec
 - 20% deposit to start, balance on delivery
 - Typical range: $2–5k NZD (simple), $5–15k (medium), $15k+ (complex)
 - Executive subscribers receive 10% off all quoted work
@@ -296,6 +297,7 @@ The public homepage was comprehensively rewritten in session 10. Key sections:
 - `_history` stored for UI display only — never sent to GPT
 - `_genCount` cap: 4 for non-superadmin, unlimited for superadmin
 - **Spec is only triggered manually** (button click) after feasibility check returns `development`
+- **Senior developer review** happens after spec generation and before quote is issued — the quote the customer sees has been validated by a human, not issued directly from GPT output
 
 ## Feasibility Check
 - **Route:** `POST /api/requirements/[id]/feasibility`

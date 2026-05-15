@@ -354,6 +354,22 @@ footer{padding:2.5rem 3rem;border-top:1px solid rgba(244,239,228,.06);display:fl
 .cs-pill{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.15em;text-transform:uppercase;padding:5px 14px;border-radius:20px;background:rgba(10,92,70,.1);color:var(--forest);border:1px solid rgba(10,92,70,.2);display:inline-block}
 
 /* ANIMS */
+/* PAIN-POINT TABS */
+.pp-tabs{margin-top:5rem;margin-bottom:2rem}
+.pp-label{display:block;font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:var(--jade);margin-bottom:1.5rem;text-align:center}
+.pp-buttons{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:2rem;justify-content:center}
+.pp-button{background:transparent;border:1px solid rgba(244,239,228,.15);border-radius:8px;padding:11px 16px;font-family:'DM Sans',sans-serif;font-size:13px;color:rgba(244,239,228,.7);cursor:pointer;transition:all .2s ease;display:flex;align-items:center;gap:8px}
+.pp-button:hover{background:rgba(26,146,114,.12);border-color:rgba(26,146,114,.3);color:var(--cream)}
+.pp-button.active{background:var(--jade);border-color:var(--jade);color:var(--ink);font-weight:500}
+.pp-icon{font-size:16px;line-height:1}
+.pp-content{display:none;background:rgba(244,239,228,.04);border:1px solid rgba(244,239,228,.08);border-radius:12px;padding:2.5rem;animation:fadeUp .3s ease}
+.pp-content.visible{display:block}
+.pp-content h3{font-family:'Cormorant Garamond',serif;font-size:28px;font-weight:300;color:var(--cream);margin-bottom:1.25rem;letter-spacing:-.01em}
+.pp-content p{font-size:14px;line-height:1.8;color:rgba(244,239,228,.75);margin-bottom:1.25rem}
+.pp-content p:last-of-type{margin-bottom:1.75rem}
+.pp-cta{display:inline-flex;align-items:center;gap:6px;font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--cream);background:var(--forest);border:1px solid rgba(26,146,114,.4);padding:11px 18px;border-radius:8px;cursor:pointer;transition:all .2s}
+.pp-cta:hover{background:var(--jade);color:var(--ink);border-color:var(--jade)}
+
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
 @keyframes marquee{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
 @keyframes spin{to{transform:rotate(360deg)}}
@@ -471,6 +487,51 @@ footer{padding:2.5rem 3rem;border-top:1px solid rgba(244,239,228,.06);display:fl
     <div class="cr"><div class="cf">Works with ISV Embed deployments</div><div class="cb">✓ All deployments</div><div class="cc">✗ Technically blocked</div></div>
     <div class="cr"><div class="cf">13-week cash flow forecasting</div><div class="cb">✓ AI + scenario modelling</div><div class="cc" style="color:rgba(244,239,228,.45)">Partial — basic only</div></div>
     <div class="cr"><div class="cf">Natural language CFO queries</div><div class="cb">✓ Full — any question</div><div class="cc" style="color:rgba(244,239,228,.45)">Partial — navigational</div></div>
+  </div>
+</div>
+</div>
+</div>
+
+<!-- PAIN-POINT TABS -->
+<div class="dark-section">
+<div class="sec">
+<div class="sec-in">
+  <div class="pp-tabs">
+    <span class="pp-label">What's your main challenge?</span>
+    <div class="pp-buttons">
+      <button class="pp-button active" onclick="ppTab(event,'speed')"><span class="pp-icon">⏱</span>Speed</button>
+      <button class="pp-button" onclick="ppTab(event,'partnership')"><span class="pp-icon">👥</span>Partnership</button>
+      <button class="pp-button" onclick="ppTab(event,'transparency')"><span class="pp-icon">📋</span>Transparency</button>
+      <button class="pp-button" onclick="ppTab(event,'unsure')"><span class="pp-icon">❓</span>Not sure</button>
+    </div>
+
+    <div id="pp-speed" class="pp-content visible">
+      <h3>You need an answer—now, not in weeks</h3>
+      <p>You have a modification idea. You contact your existing partner. They book you in—three weeks from now. The consultation happens. Discovery, questions, drafting a Functional Requirements Document. Days or weeks. Then the estimate. Weeks more. Thousands of dollars in hidden consulting costs before you even know the price.</p>
+      <p>With BespoxAI, you start generating that document today. Minutes. Our AI, trained on your version of BC or NAV, walks you through the requirements in real time. You refine it yourself. Then you request a senior developer review. They ask clarifying questions, you finalize the spec, and you get a transparent quote. Scope locked. No surprises.</p>
+      <button class="pp-cta" onclick="document.querySelector('.nav-links a:nth-child(3)').click()">Get started →</button>
+    </div>
+
+    <div id="pp-partnership" class="pp-content">
+      <h3>Your partner is great—just overbooked</h3>
+      <p>We're not here to replace your partner. We exist because they're busy—and they should be. When you have a modification or enhancement that needs exploring, your partner is often focused on larger deliverables, bigger customers, and pipeline priorities. That's not a failure of theirs; it's reality. But your idea deserves exploration without a three-month lag.</p>
+      <p>BespoxAI handles the rapid discovery and specification phase. You work with our AI and senior developers to define requirements clearly, get a transparent estimate, and prove concept validity—all in days, not months. Then you can confidently take that specification to your partner, negotiate scope, or decide whether to build internally.</p>
+      <button class="pp-cta" onclick="document.querySelector('.nav-links a:nth-child(3)').click()">Explore with us →</button>
+    </div>
+
+    <div id="pp-transparency" class="pp-content">
+      <h3>Hidden costs and unclear scope—not anymore</h3>
+      <p>A simple modification request to your partner becomes a multi-step cost center: consultant time for discovery, developer time for estimation, project management overhead—all baked into a final quote you can't unpack. You pay for the entire process, whether the idea is worth pursuing or not.</p>
+      <p>With BespoxAI, you see exactly what you're building before you commit. Our AI generates your Functional Requirements Document in minutes, you refine it yourself at no cost, then a senior developer reviews it and gives you a clear, itemized quote. No hidden consulting fees. Scope is locked. You decide with full visibility.</p>
+      <button class="pp-cta" onclick="document.querySelector('.nav-links a:nth-child(3)').click()">See the difference →</button>
+    </div>
+
+    <div id="pp-unsure" class="pp-content">
+      <h3>Let's figure out what matters to you</h3>
+      <p>The three pain points above cover most challenges for BC and NAV deployments. But your situation might be different. Tell us what's on your mind—what's holding you back from exploring modifications or enhancements to your system right now?</p>
+      <p>We're here to listen and help you move forward.</p>
+      <button class="pp-cta" onclick="document.querySelector('.nav-links a:nth-child(3)').click()">Start a conversation →</button>
+    </div>
   </div>
 </div>
 </div>
@@ -815,6 +876,15 @@ function ptab(tab, btn) {
   if (btn) btn.classList.add('on');
   var titles = {dashboard:'Overview',chat:'CFO Assistant',scanner:'Data Health Scanner',cashflow:'Cash Flow Intelligence',close:'Month-End Close',migration:'NAV Migration Analyser'};
   document.getElementById('ptb-title').textContent = titles[tab] || tab;
+}
+
+function ppTab(event, tabId) {
+  var buttons = document.querySelectorAll('.pp-button');
+  var contents = document.querySelectorAll('.pp-content');
+  buttons.forEach(btn => btn.classList.remove('active'));
+  contents.forEach(content => content.classList.remove('visible'));
+  event.target.closest('.pp-button').classList.add('active');
+  document.getElementById('pp-' + tabId).classList.add('visible');
 }
 
 // Build cash flow bars
